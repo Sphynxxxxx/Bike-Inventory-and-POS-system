@@ -5,7 +5,7 @@ import os
 from PIL import Image, ImageTk
 
 # Static credentials
-USERNAME = "admin@bikeshop.com"
+USERNAME = "admin"
 PASSWORD = "admin123"
 
 def login():
