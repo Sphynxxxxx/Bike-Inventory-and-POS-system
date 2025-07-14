@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from ui_components import ProductDialog, create_styles, ModernSidebar, SalesEntryFrame
 
+
 class BikeShopInventorySystem:
     def __init__(self, root):
         self.root = root
@@ -1235,16 +1236,15 @@ class BikeShopInventorySystem:
 
     def record_sale(self, cart_items, payment_method='Cash'):
         """
-        Record a sale transaction and update inventory
-        
-        Args:
-            cart_items: List of dictionaries with sale data
-            payment_method: Payment method used
-            
-        Returns:
-            tuple: (success, transaction_id_or_error_message)
+        Record a sale transaction and update inventory - ENHANCED VERSION
         """
         try:
+            print(f"Recording sale with {len(cart_items)} items")
+            
+            # Validate input
+            if not cart_items:
+                return False, "No items to record"
+            
             # Generate unique transaction ID
             transaction_id = f"TXN{datetime.now().strftime('%Y%m%d%H%M%S')}"
             total_amount = 0
@@ -1253,55 +1253,64 @@ class BikeShopInventorySystem:
             # Start transaction
             self.cursor.execute('BEGIN TRANSACTION')
             
-            # Validate stock availability for all items first
+            # Validate and process each item
             for item in cart_items:
-                if not self.check_stock_availability(item['product_id'], item['quantity']):
+                # Ensure all required fields are present
+                if not all(field in item for field in ['product_id', 'product_name', 'unit_price', 'quantity']):
                     self.cursor.execute('ROLLBACK')
-                    return False, f"Insufficient stock for {item['product_name']}"
-            
-            # Process each item in the cart
-            for item in cart_items:
+                    return False, f"Missing required fields in item: {item}"
+                
+                # Validate stock availability
+                if not self.check_stock_availability(item['product_id'], item['quantity']):
+                    current_stock = self.get_current_stock(item['product_id'])
+                    self.cursor.execute('ROLLBACK')
+                    return False, f"Insufficient stock for {item['product_name']}. Available: {current_stock}, Requested: {item['quantity']}"
+                
+                # Calculate item total
                 item_total = item['quantity'] * item['unit_price']
                 total_amount += item_total
                 
                 # Insert into sales table
                 self.cursor.execute('''
                     INSERT INTO sales (transaction_id, product_id, product_name, product_category, 
-                                     quantity, price, total, sale_date)
+                                    quantity, price, total, sale_date)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (transaction_id, item['product_id'], item['product_name'], 
-                      item.get('category', 'N/A'), item['quantity'], item['unit_price'], 
-                      item_total, sale_date))
+                    item.get('category', 'N/A'), item['quantity'], item['unit_price'], 
+                    item_total, sale_date))
                 
-                # Update product stock - CRITICAL PART
+                # Update product stock
                 self.cursor.execute('''
                     UPDATE products 
                     SET stock = stock - ? 
                     WHERE product_id = ?
                 ''', (item['quantity'], item['product_id']))
                 
-                # Verify the stock was actually updated
-                self.cursor.execute('''
-                    SELECT stock FROM products WHERE product_id = ?
-                ''', (item['product_id'],))
+                # Verify the update worked
+                if self.cursor.rowcount == 0:
+                    self.cursor.execute('ROLLBACK')
+                    return False, f"Failed to update stock for product {item['product_id']}"
                 
+                # Get updated stock for logging
+                self.cursor.execute('SELECT stock FROM products WHERE product_id = ?', (item['product_id'],))
                 updated_stock = self.cursor.fetchone()
+                
                 if updated_stock is None:
                     self.cursor.execute('ROLLBACK')
-                    return False, f"Product {item['product_id']} not found in inventory"
+                    return False, f"Product {item['product_id']} not found after stock update"
                 
                 if updated_stock[0] < 0:
                     self.cursor.execute('ROLLBACK')
-                    return False, f"Transaction would result in negative stock for {item['product_name']}"
+                    return False, f"Stock would become negative for {item['product_name']}"
                 
-                # Record stock movement for tracking
+                # Record stock movement
                 self.cursor.execute('''
                     INSERT INTO stock_movements (product_id, product_name, movement_type, quantity, 
-                                               reference_id, reason, notes)
+                                            reference_id, reason, notes)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 ''', (item['product_id'], item['product_name'], 'OUT', 
-                      item['quantity'], transaction_id, 'SALE', 
-                      f'Sold {item["quantity"]} units. New stock: {updated_stock[0]}'))
+                    item['quantity'], transaction_id, 'SALE', 
+                    f'Sold {item["quantity"]} units. New stock: {updated_stock[0]}'))
             
             # Insert into transactions table
             self.cursor.execute('''
@@ -1311,10 +1320,6 @@ class BikeShopInventorySystem:
             
             # Commit the transaction
             self.cursor.execute('COMMIT')
-            
-            # Refresh inventory display if visible
-            if hasattr(self, 'inventory_frame') and self.inventory_frame and self.inventory_frame.winfo_viewable():
-                self.refresh_products()
             
             print(f"Sale recorded successfully. Transaction ID: {transaction_id}, Total: ₱{total_amount:.2f}")
             return True, transaction_id
@@ -1326,6 +1331,8 @@ class BikeShopInventorySystem:
         except Exception as e:
             self.cursor.execute('ROLLBACK')
             print(f"Unexpected error in record_sale: {e}")
+            import traceback
+            traceback.print_exc()
             return False, f"Unexpected error: {str(e)}"
 
     def check_stock_availability(self, product_id, quantity):
@@ -1508,39 +1515,44 @@ class BikeShopInventorySystem:
             }
 
     def validate_transaction(self, cart_items):
-        """
-        Validate a transaction before processing
-        
-        Args:
-            cart_items: List of items in the cart
-            
-        Returns:
-            tuple: (is_valid, error_message)
-        """
+        """Enhanced validation with database verification"""
         if not cart_items:
             return False, "Cart is empty"
         
-        for item in cart_items:
-            # Check required fields
-            required_fields = ['product_id', 'product_name', 'quantity', 'unit_price']
-            for field in required_fields:
-                if field not in item or item[field] is None:
-                    return False, f"Missing required field: {field}"
+        try:
+            for item in cart_items:
+                # Check required fields
+                required_fields = ['product_id', 'product_name', 'unit_price', 'quantity']
+                for field in required_fields:
+                    if field not in item or item[field] is None:
+                        return False, f"Missing {field} for item: {item.get('product_name', 'Unknown')}"
+                
+                # Validate product exists in database
+                self.cursor.execute('''
+                    SELECT name, stock, price FROM products WHERE product_id = ?
+                ''', (item['product_id'],))
+                db_product = self.cursor.fetchone()
+                
+                if not db_product:
+                    return False, f"Product {item['product_name']} (ID: {item['product_id']}) not found in inventory"
+                
+                db_name, db_stock, db_price = db_product
+                
+                # Validate stock
+                if db_stock < item['quantity']:
+                    return False, f"Insufficient stock for {item['product_name']}. Available: {db_stock}, Requested: {item['quantity']}"
+                
+                # Validate quantity and price
+                if item['quantity'] <= 0:
+                    return False, f"Invalid quantity for {item['product_name']}"
+                
+                if item['unit_price'] <= 0:
+                    return False, f"Invalid price for {item['product_name']}"
             
-            # Check quantity is positive
-            if item['quantity'] <= 0:
-                return False, f"Invalid quantity for {item['product_name']}"
+            return True, "Valid transaction"
             
-            # Check price is positive
-            if item['unit_price'] <= 0:
-                return False, f"Invalid price for {item['product_name']}"
-            
-            # Check stock availability
-            if not self.check_stock_availability(item['product_id'], item['quantity']):
-                current_stock = self.get_current_stock(item['product_id'])
-                return False, f"Insufficient stock for {item['product_name']}. Available: {current_stock}, Requested: {item['quantity']}"
-        
-        return True, "Valid transaction"
+        except Exception as e:
+            return False, f"Validation error: {str(e)}"
 
     def get_current_stock(self, product_id):
         """

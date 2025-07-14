@@ -3,6 +3,13 @@ from tkinter import ttk, messagebox, simpledialog
 from datetime import datetime
 import sqlite3
 import uuid
+import sys
+import io
+
+# Fix Unicode console output on Windows
+if sys.platform.startswith('win'):
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 class ProductDialog:
     def __init__(self, parent, title, product_data=None):
@@ -397,6 +404,14 @@ class SalesEntryFrame(ttk.Frame):
         # Load initial products
         self.load_all_products()
 
+    def debug_cart_contents(self):
+        """Debug method to print cart contents - FIXED: This method was missing"""
+        print("=== CART DEBUG ===")
+        print(f"Cart has {len(self.cart_items)} items:")
+        for i, item in enumerate(self.cart_items):
+            print(f"  Item {i}: {item}")
+        print("================")
+
     def load_all_products(self):
         """Load all products into the products tree"""
         try:
@@ -413,16 +428,34 @@ class SalesEntryFrame(ttk.Frame):
             ''')
             products = cursor.fetchall()
 
+            print(f"Loading {len(products)} products from database:")
+            
             for product in products:
-                self.products_tree.insert('', 'end', values=(
-                    product[0],  # name
-                    f"₱{product[1]:.2f}",  # price
-                    product[2],  # stock
-                    product[3]   # category
-                ), tags=(product[4],))  # Store product_id in tags
+                product_name = product[0]
+                product_price = float(product[1])
+                product_stock = int(product[2])
+                product_category = product[3] if product[3] else "No Category"
+                product_id = product[4]
+                
+                print(f"  Product: {product_name}, ID: {product_id}, Stock: {product_stock}")
+                
+                # Insert with product_id in tags
+                item_id = self.products_tree.insert('', 'end', values=(
+                    product_name,
+                    f"₱{product_price:.2f}",
+                    product_stock,
+                    product_category
+                ), tags=(product_id,))
+                
+                print(f"    Inserted with item_id: {item_id}, tags: {self.products_tree.item(item_id)['tags']}")
+
+            print(f"Successfully loaded {len(products)} products")
 
         except Exception as e:
             print(f"Error loading products: {e}")
+            import traceback
+            traceback.print_exc()
+            messagebox.showerror("Error", f"Failed to load products: {str(e)}")
 
     def filter_products(self, event=None):
         """Filter products based on category and search term"""
@@ -488,13 +521,50 @@ class SalesEntryFrame(ttk.Frame):
             return
 
         try:
-            item = self.products_tree.item(selection[0])
+            # Get the selected item
+            selected_item_id = selection[0]
+            item = self.products_tree.item(selected_item_id)
+            
+            print(f"Selected item: {item}")
+            print(f"Item values: {item['values']}")
+            print(f"Item tags: {item['tags']}")
+            
+            # Extract product information
             product_name = item['values'][0]
             product_price_str = item['values'][1].replace('₱', '').replace(',', '')
             product_price = float(product_price_str)
             available_stock = int(item['values'][2])
             product_category = item['values'][3]
+            
+            # Get product_id from tags
+            if not item['tags'] or len(item['tags']) == 0:
+                messagebox.showerror("Error", 
+                                f"Product ID not found for {product_name}. "
+                                f"Please refresh the product list and try again.")
+                print("ERROR: No tags found for selected item")
+                return
+            
             product_id = item['tags'][0]
+            print(f"Using product_id: {product_id}")
+            
+            # Validate product_id exists in database
+            cursor = self.main_app.cursor
+            cursor.execute('SELECT name FROM products WHERE product_id = ?', (product_id,))
+            db_product = cursor.fetchone()
+            
+            if not db_product:
+                messagebox.showerror("Error", 
+                                f"Product {product_name} (ID: {product_id}) not found in inventory database. "
+                                f"Please refresh the product list.")
+                print(f"ERROR: Product ID {product_id} not found in database")
+                return
+            
+            print(f"Database confirms product exists: {db_product[0]}")
+
+            # Validate stock
+            if available_stock <= 0:
+                messagebox.showerror("Error", f"{product_name} is out of stock!")
+                return
 
             # Ask for quantity
             quantity = simpledialog.askinteger(
@@ -514,29 +584,35 @@ class SalesEntryFrame(ttk.Frame):
                     new_quantity = cart_item['quantity'] + quantity
                     if new_quantity > available_stock:
                         messagebox.showerror("Error", 
-                                           f"Not enough stock! Available: {available_stock}, "
-                                           f"Already in cart: {cart_item['quantity']}")
+                                        f"Not enough stock! Available: {available_stock}, "
+                                        f"Already in cart: {cart_item['quantity']}")
                         return
                     cart_item['quantity'] = new_quantity
                     cart_item['total'] = cart_item['quantity'] * cart_item['unit_price']
                     self.refresh_cart()
+                    messagebox.showinfo("Success", f"Updated {product_name} quantity to {new_quantity}!")
                     return
 
-            # Add new item to cart
+            # Create cart item with ALL required fields
             cart_item = {
                 'product_id': product_id,
-                'product_name': product_name,  # Changed from 'name' to 'product_name'
-                'unit_price': product_price,   # Changed from 'price' to 'unit_price'
+                'product_name': product_name,
+                'unit_price': product_price,
                 'quantity': quantity,
                 'total': product_price * quantity,
                 'category': product_category
             }
 
+            print(f"Adding cart item: {cart_item}")
+            
             self.cart_items.append(cart_item)
             self.refresh_cart()
             messagebox.showinfo("Success", f"Added {quantity} x {product_name} to cart!")
 
         except Exception as e:
+            print(f"Error in add_to_cart: {e}")
+            import traceback
+            traceback.print_exc()
             messagebox.showerror("Error", f"Failed to add product to cart: {str(e)}")
 
     def refresh_cart(self):
@@ -549,9 +625,9 @@ class SalesEntryFrame(ttk.Frame):
         total_amount = 0
         for item in self.cart_items:
             self.cart_tree.insert('', 'end', values=(
-                item['product_name'],  # Changed from 'name'
+                item['product_name'],
                 item['quantity'],
-                f"₱{item['unit_price']:.2f}",  # Changed from 'price'
+                f"₱{item['unit_price']:.2f}",
                 f"₱{item['total']:.2f}"
             ))
             total_amount += item['total']
@@ -583,58 +659,82 @@ class SalesEntryFrame(ttk.Frame):
             messagebox.showinfo("Success", "Cart cleared!")
 
     def process_checkout(self):
-        """Process the checkout - FIXED VERSION"""
+        """Process checkout with enhanced validation and error handling"""
         if not self.cart_items:
             messagebox.showwarning("Warning", "Cart is empty. Please add items before checkout.")
             return
 
         try:
-            print("=== CHECKOUT DEBUG ===")
-            print(f"Cart items: {self.cart_items}")
+            # Debug cart contents first
+            self.debug_cart_contents()
             
-            # Validate transaction using the main app's method
+            print("=== STARTING CHECKOUT ===")
+            
+            # Validate each cart item has required fields
+            for i, item in enumerate(self.cart_items):
+                required_fields = ['product_id', 'product_name', 'unit_price', 'quantity']
+                for field in required_fields:
+                    if field not in item or item[field] is None:
+                        error_msg = f"Cart item {i} missing required field: {field}"
+                        print(f"ERROR: {error_msg}")
+                        messagebox.showerror("Validation Error", error_msg)
+                        return
+            
+            # Validate transaction
             is_valid, error_msg = self.main_app.validate_transaction(self.cart_items)
             if not is_valid:
+                print(f"Transaction validation failed: {error_msg}")
                 messagebox.showerror("Validation Error", error_msg)
                 return
             
             # Get payment method
             payment_method = self.payment_var.get()
+            total_amount = sum(item['quantity'] * item['unit_price'] for item in self.cart_items)
             
-            # CRITICAL FIX: Use the main app's record_sale method instead of direct DB manipulation
+            # Confirm checkout
+            confirm_msg = (f"Confirm checkout:\n\n"
+                        f"Items: {len(self.cart_items)}\n"
+                        f"Total: ₱{total_amount:.2f}\n"
+                        f"Payment: {payment_method}\n\n"
+                        f"Proceed with transaction?")
+            
+            if not messagebox.askyesno("Confirm Checkout", confirm_msg):
+                return
+            
+            # Process the sale
+            print("Calling record_sale...")
             success, result = self.main_app.record_sale(self.cart_items, payment_method)
             
             if success:
                 transaction_id = result
-                total_amount = sum(item['quantity'] * item['unit_price'] for item in self.cart_items)
+                print(f"Sale successful! Transaction ID: {transaction_id}")
                 
                 # Show success message
                 messagebox.showinfo("Checkout Successful", 
-                                  f"Transaction completed successfully!\n\n"
-                                  f"Transaction ID: {transaction_id}\n"
-                                  f"Total Amount: ₱{total_amount:.2f}\n"
-                                  f"Payment Method: {payment_method}")
+                                f"Transaction completed successfully!\n\n"
+                                f"Transaction ID: {transaction_id}\n"
+                                f"Total Amount: ₱{total_amount:.2f}\n"
+                                f"Payment Method: {payment_method}")
                 
-                # Clear cart and refresh displays
+                # Clear cart and refresh
                 self.cart_items.clear()
                 self.refresh_cart()
-                self.load_all_products()  # Refresh to show updated stock
+                self.load_all_products()
                 
-                # Refresh inventory display if it's currently visible
+                # Refresh inventory if visible
                 if hasattr(self.main_app, 'inventory_frame') and self.main_app.inventory_frame:
                     if self.main_app.inventory_frame.winfo_viewable():
                         self.main_app.refresh_products()
                 
-                print(f"Checkout successful! Transaction ID: {transaction_id}")
-                
             else:
-                # Show error message
+                print(f"Sale failed: {result}")
                 messagebox.showerror("Checkout Failed", f"Transaction failed: {result}")
-                print(f"Checkout failed: {result}")
 
         except Exception as e:
+            print(f"Checkout error: {e}")
+            import traceback
+            traceback.print_exc()
             messagebox.showerror("Error", f"Unexpected error during checkout: {str(e)}")
-            print(f"Checkout exception: {e}")
 
     def refresh_recent_sales(self):
         """This method is kept for compatibility but not used in POS interface"""
@@ -839,6 +939,10 @@ def create_styles():
                    foreground=colors['text_primary'],
                    font=('Helvetica', 20, 'bold'))
 
+    style.configure('CardIcon.TLabel',
+                   background=colors['card_bg'],
+                   foreground=colors['text_secondary'])
+
     # Placeholder style
     style.configure('Placeholder.TLabel',
                    background=colors['card_bg'],
@@ -887,8 +991,3 @@ def create_styles():
                    background=colors['card_bg'],
                    foreground=colors['text_secondary'],
                    font=('Helvetica', 10))
-
-    # Card icon style
-    style.configure('CardIcon.TLabel',
-                   background=colors['card_bg'],
-                   foreground=colors['text_secondary'])
