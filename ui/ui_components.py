@@ -11,6 +11,136 @@ if sys.platform.startswith('win'):
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
+class CustomerQuantityDialog:
+    def __init__(self, parent, product_name, available_stock):
+        self.result = None
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title("Add to Cart")
+        self.dialog.geometry("400x300")
+        self.dialog.transient(parent)
+        self.dialog.grab_set()
+        self.dialog.configure(bg='#ffffff')
+        
+        # Center the dialog
+        self.dialog.update_idletasks()
+        x = (self.dialog.winfo_screenwidth() // 2) - (200)
+        y = (self.dialog.winfo_screenheight() // 2) - (150)
+        self.dialog.geometry(f"400x300+{x}+{y}")
+        
+        self.product_name = product_name
+        self.available_stock = available_stock
+        self.create_widgets()
+        
+        # Focus on the customer name entry
+        self.customer_entry.focus_set()
+        
+        self.dialog.wait_window()
+
+    def create_widgets(self):
+        main_frame = ttk.Frame(self.dialog, padding="30", style='Content.TFrame')
+        main_frame.pack(fill='both', expand=True)
+
+        # Title
+        title_label = ttk.Label(main_frame, text="Add Product to Cart", 
+                               style='DialogTitle.TLabel')
+        title_label.grid(row=0, column=0, columnspan=2, pady=(0, 20), sticky='w')
+
+        # Product info
+        product_info = ttk.Label(main_frame, 
+                                text=f"Product: {self.product_name}\nAvailable Stock: {self.available_stock}",
+                                style='FieldLabel.TLabel')
+        product_info.grid(row=1, column=0, columnspan=2, pady=(0, 20), sticky='w')
+
+        # Customer Name
+        ttk.Label(main_frame, text="Customer Name:", style='FieldLabel.TLabel').grid(
+            row=2, column=0, sticky='w', pady=8)
+        self.customer_var = tk.StringVar()
+        self.customer_entry = ttk.Entry(main_frame, textvariable=self.customer_var, 
+                                       width=35, style='Modern.TEntry')
+        self.customer_entry.grid(row=2, column=1, pady=8, sticky='ew')
+
+        # Quantity
+        ttk.Label(main_frame, text="Quantity:", style='FieldLabel.TLabel').grid(
+            row=3, column=0, sticky='w', pady=8)
+        self.quantity_var = tk.StringVar(value="1")
+        self.quantity_entry = ttk.Entry(main_frame, textvariable=self.quantity_var, 
+                                       width=35, style='Modern.TEntry')
+        self.quantity_entry.grid(row=3, column=1, pady=8, sticky='ew')
+
+        # Validation note
+        note_label = ttk.Label(main_frame, 
+                              text=f"Enter quantity (1 to {self.available_stock})",
+                              style='ValidationNote.TLabel')
+        note_label.grid(row=4, column=0, columnspan=2, pady=(5, 20), sticky='w')
+
+        # Configure column weights
+        main_frame.columnconfigure(1, weight=1)
+
+        # Buttons
+        button_frame = ttk.Frame(main_frame, style='Content.TFrame')
+        button_frame.grid(row=5, column=0, columnspan=2, pady=20, sticky='ew')
+
+        cancel_btn = ttk.Button(button_frame, text="Cancel", command=self.cancel, 
+                               style='Secondary.TButton')
+        cancel_btn.pack(side='right', padx=(10, 0))
+        
+        add_btn = ttk.Button(button_frame, text="Add to Cart", command=self.add_to_cart, 
+                            style='Primary.TButton')
+        add_btn.pack(side='right')
+        
+        # Bind Enter key to add
+        self.dialog.bind('<Return>', lambda e: self.add_to_cart())
+        self.dialog.bind('<Escape>', lambda e: self.cancel())
+
+    def add_to_cart(self):
+        try:
+            # Get values and strip whitespace
+            customer_name = self.customer_var.get().strip()
+            quantity_str = self.quantity_var.get().strip()
+
+            # Validate customer name
+            if not customer_name:
+                messagebox.showerror("Validation Error", "Customer name is required!")
+                self.customer_entry.focus_set()
+                return
+
+            # Validate and convert quantity
+            try:
+                quantity = int(quantity_str)
+            except ValueError:
+                messagebox.showerror("Validation Error", "Please enter a valid quantity!")
+                self.quantity_entry.focus_set()
+                return
+
+            # Validate quantity range
+            if quantity <= 0:
+                messagebox.showerror("Validation Error", "Quantity must be greater than 0!")
+                self.quantity_entry.focus_set()
+                return
+                
+            if quantity > self.available_stock:
+                messagebox.showerror("Validation Error", 
+                                   f"Quantity cannot exceed available stock ({self.available_stock})!")
+                self.quantity_entry.focus_set()
+                return
+
+            # Create result dictionary
+            self.result = {
+                'customer_name': customer_name,
+                'quantity': quantity
+            }
+            
+            print(f"CustomerQuantityDialog result: {self.result}")  # Debug print
+            self.dialog.destroy()
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"An unexpected error occurred: {str(e)}")
+            print(f"Error in CustomerQuantityDialog.add_to_cart(): {e}")
+
+    def cancel(self):
+        self.result = None
+        self.dialog.destroy()
+
 class ProductDialog:
     def __init__(self, parent, title, product_data=None):
         self.result = None
@@ -243,6 +373,7 @@ class SalesEntryFrame(ttk.Frame):
         super().__init__(parent, style='Content.TFrame')
         self.main_app = main_app
         self.cart_items = []
+        self.products_data = {}  # Store complete product data
         self.create_pos_interface()
 
     def create_pos_interface(self):
@@ -305,20 +436,22 @@ class SalesEntryFrame(ttk.Frame):
         products_frame.pack(fill='both', expand=True, padx=25, pady=(0, 25))
 
         # Create treeview for products
-        product_columns = ('Name', 'Price', 'Stock', 'Category')
+        product_columns = ('Product ID', 'Name', 'Price', 'Stock', 'Category')
         self.products_tree = ttk.Treeview(products_frame, columns=product_columns, show='headings', 
                                          style='Modern.Treeview', height=12)
 
-        for col in product_columns:
-            self.products_tree.heading(col, text=col)
-            if col == 'Name':
-                self.products_tree.column(col, width=150)
-            elif col == 'Price':
-                self.products_tree.column(col, width=80)
-            elif col == 'Stock':
-                self.products_tree.column(col, width=60)
-            else:
-                self.products_tree.column(col, width=100)
+        # Configure columns
+        self.products_tree.heading('Product ID', text='Product ID')
+        self.products_tree.heading('Name', text='Name')
+        self.products_tree.heading('Price', text='Price')
+        self.products_tree.heading('Stock', text='Stock')
+        self.products_tree.heading('Category', text='Category')
+        
+        self.products_tree.column('Product ID', width=100)
+        self.products_tree.column('Name', width=150)
+        self.products_tree.column('Price', width=80)
+        self.products_tree.column('Stock', width=60)
+        self.products_tree.column('Category', width=100)
 
         products_scrollbar = ttk.Scrollbar(products_frame, orient='vertical', command=self.products_tree.yview)
         self.products_tree.configure(yscrollcommand=products_scrollbar.set)
@@ -346,21 +479,24 @@ class SalesEntryFrame(ttk.Frame):
         cart_table_frame = ttk.Frame(right_frame, style='Card.TFrame')
         cart_table_frame.pack(fill='both', expand=True, padx=25, pady=(0, 15))
 
-        # Create cart treeview
-        cart_columns = ('Product', 'Qty', 'Price', 'Total')
+        # Create cart treeview - Added Customer column
+        cart_columns = ('Product ID', 'Product', 'Customer', 'Qty', 'Price', 'Total')
         self.cart_tree = ttk.Treeview(cart_table_frame, columns=cart_columns, show='headings', 
                                      style='Modern.Treeview', height=10)
 
-        for col in cart_columns:
-            self.cart_tree.heading(col, text=col)
-            if col == 'Product':
-                self.cart_tree.column(col, width=120)
-            elif col == 'Qty':
-                self.cart_tree.column(col, width=50)
-            elif col == 'Price':
-                self.cart_tree.column(col, width=80)
-            else:
-                self.cart_tree.column(col, width=80)
+        self.cart_tree.heading('Product ID', text='ID')
+        self.cart_tree.heading('Product', text='Product')
+        self.cart_tree.heading('Customer', text='Customer')
+        self.cart_tree.heading('Qty', text='Qty')
+        self.cart_tree.heading('Price', text='Price')
+        self.cart_tree.heading('Total', text='Total')
+        
+        self.cart_tree.column('Product ID', width=70)
+        self.cart_tree.column('Product', width=100)
+        self.cart_tree.column('Customer', width=100)
+        self.cart_tree.column('Qty', width=40)
+        self.cart_tree.column('Price', width=70)
+        self.cart_tree.column('Total', width=70)
 
         cart_scrollbar = ttk.Scrollbar(cart_table_frame, orient='vertical', command=self.cart_tree.yview)
         self.cart_tree.configure(yscrollcommand=cart_scrollbar.set)
@@ -404,52 +540,61 @@ class SalesEntryFrame(ttk.Frame):
         # Load initial products
         self.load_all_products()
 
-    def debug_cart_contents(self):
-        """Debug method to print cart contents - FIXED: This method was missing"""
-        print("=== CART DEBUG ===")
-        print(f"Cart has {len(self.cart_items)} items:")
-        for i, item in enumerate(self.cart_items):
-            print(f"  Item {i}: {item}")
-        print("================")
-
     def load_all_products(self):
-        """Load all products into the products tree"""
+        """Load all products into the products tree with proper product_id handling"""
         try:
-            # Clear existing items
+            print("=== LOADING PRODUCTS ===")
+            
+            # Clear existing items and data
             for item in self.products_tree.get_children():
                 self.products_tree.delete(item)
+            self.products_data.clear()
 
             cursor = self.main_app.cursor
             cursor.execute('''
-                SELECT name, price, stock, category, product_id 
+                SELECT id, name, price, stock, category, product_id 
                 FROM products 
                 WHERE stock > 0 
                 ORDER BY name
             ''')
             products = cursor.fetchall()
 
-            print(f"Loading {len(products)} products from database:")
+            print(f"Found {len(products)} products in database:")
             
             for product in products:
-                product_name = product[0]
-                product_price = float(product[1])
-                product_stock = int(product[2])
-                product_category = product[3] if product[3] else "No Category"
-                product_id = product[4]
+                db_id = product[0]          # Database ID (auto-increment)
+                product_name = product[1]
+                product_price = float(product[2])
+                product_stock = int(product[3])
+                product_category = product[4] if product[4] else "No Category"
+                product_id = str(product[5])     # Convert to string for consistency
                 
-                print(f"  Product: {product_name}, ID: {product_id}, Stock: {product_stock}")
+                print(f"  Loading: ID={product_id}, Name={product_name}, Stock={product_stock}")
                 
-                # Insert with product_id in tags
+                # Store complete product data using product_id as string key
+                self.products_data[product_id] = {
+                    'db_id': db_id,
+                    'name': product_name,
+                    'price': product_price,
+                    'stock': product_stock,
+                    'category': product_category,
+                    'product_id': product_id
+                }
+                
+                # Insert into treeview with product_id as the identifier
                 item_id = self.products_tree.insert('', 'end', values=(
+                    product_id,        # Show product_id in first column
                     product_name,
                     f"₱{product_price:.2f}",
                     product_stock,
                     product_category
-                ), tags=(product_id,))
+                ))
                 
-                print(f"    Inserted with item_id: {item_id}, tags: {self.products_tree.item(item_id)['tags']}")
+                print(f"    Added to treeview with item_id: {item_id}")
 
-            print(f"Successfully loaded {len(products)} products")
+            print(f"Products loaded successfully!")
+            print(f"Products data keys: {list(self.products_data.keys())}")
+            print("========================")
 
         except Exception as e:
             print(f"Error loading products: {e}")
@@ -460,26 +605,31 @@ class SalesEntryFrame(ttk.Frame):
     def filter_products(self, event=None):
         """Filter products based on category and search term"""
         try:
+            print("=== FILTERING PRODUCTS ===")
+            
             # Clear existing items
             for item in self.products_tree.get_children():
                 self.products_tree.delete(item)
+            self.products_data.clear()
 
             cursor = self.main_app.cursor
             category = self.search_category_var.get()
             search_term = self.search_var.get().lower()
 
+            print(f"Filter: Category='{category}', Search='{search_term}'")
+
             # Build query based on filters
             if category == 'All Categories':
                 if search_term:
                     cursor.execute('''
-                        SELECT name, price, stock, category, product_id 
+                        SELECT id, name, price, stock, category, product_id 
                         FROM products 
                         WHERE stock > 0 AND LOWER(name) LIKE ?
                         ORDER BY name
                     ''', (f'%{search_term}%',))
                 else:
                     cursor.execute('''
-                        SELECT name, price, stock, category, product_id 
+                        SELECT id, name, price, stock, category, product_id 
                         FROM products 
                         WHERE stock > 0 
                         ORDER BY name
@@ -487,127 +637,177 @@ class SalesEntryFrame(ttk.Frame):
             else:
                 if search_term:
                     cursor.execute('''
-                        SELECT name, price, stock, category, product_id 
+                        SELECT id, name, price, stock, category, product_id 
                         FROM products 
                         WHERE stock > 0 AND category = ? AND LOWER(name) LIKE ?
                         ORDER BY name
                     ''', (category, f'%{search_term}%'))
                 else:
                     cursor.execute('''
-                        SELECT name, price, stock, category, product_id 
+                        SELECT id, name, price, stock, category, product_id 
                         FROM products 
                         WHERE stock > 0 AND category = ?
                         ORDER BY name
                     ''', (category,))
 
             products = cursor.fetchall()
+            print(f"Found {len(products)} filtered products")
 
             for product in products:
+                db_id = product[0]
+                product_name = product[1]
+                product_price = float(product[2])
+                product_stock = int(product[3])
+                product_category = product[4] if product[4] else "No Category"
+                product_id = str(product[5])  # Convert to string
+                
+                # Store complete product data
+                self.products_data[product_id] = {
+                    'db_id': db_id,
+                    'name': product_name,
+                    'price': product_price,
+                    'stock': product_stock,
+                    'category': product_category,
+                    'product_id': product_id
+                }
+                
+                # Insert into treeview
                 self.products_tree.insert('', 'end', values=(
-                    product[0],  # name
-                    f"₱{product[1]:.2f}",  # price
-                    product[2],  # stock
-                    product[3]   # category
-                ), tags=(product[4],))  # Store product_id in tags
+                    product_id,        # Show product_id
+                    product_name,
+                    f"₱{product_price:.2f}",
+                    product_stock,
+                    product_category
+                ))
+
+            print("Filtering completed successfully")
+            print("=============================")
 
         except Exception as e:
             print(f"Error filtering products: {e}")
+            import traceback
+            traceback.print_exc()
 
     def add_to_cart(self):
-        """Add selected product to cart"""
+        """Add selected product to cart with proper product_id handling and customer name"""
         selection = self.products_tree.selection()
         if not selection:
             messagebox.showwarning("Warning", "Please select a product to add to cart.")
             return
 
         try:
+            print("=== ADDING TO CART ===")
+            
             # Get the selected item
             selected_item_id = selection[0]
             item = self.products_tree.item(selected_item_id)
             
             print(f"Selected item: {item}")
             print(f"Item values: {item['values']}")
-            print(f"Item tags: {item['tags']}")
             
-            # Extract product information
-            product_name = item['values'][0]
-            product_price_str = item['values'][1].replace('₱', '').replace(',', '')
-            product_price = float(product_price_str)
-            available_stock = int(item['values'][2])
-            product_category = item['values'][3]
+            # Extract product_id from the first column and ensure it's a string
+            product_id = str(item['values'][0])  # Convert to string for consistency
             
-            # Get product_id from tags
-            if not item['tags'] or len(item['tags']) == 0:
-                messagebox.showerror("Error", 
-                                f"Product ID not found for {product_name}. "
-                                f"Please refresh the product list and try again.")
-                print("ERROR: No tags found for selected item")
-                return
+            print(f"Extracted product_id: '{product_id}' (type: {type(product_id)})")
+            print(f"Available product keys: {list(self.products_data.keys())}")
             
-            product_id = item['tags'][0]
-            print(f"Using product_id: {product_id}")
+            # Check if we have the product data
+            if product_id not in self.products_data:
+                print(f"ERROR: Product ID '{product_id}' not found in products_data")
+                print(f"Available keys: {list(self.products_data.keys())}")
+                
+                # Try to reload products and check again
+                self.load_all_products()
+                
+                if product_id not in self.products_data:
+                    messagebox.showerror("Error", 
+                                    f"Product data not found for ID: {product_id}. "
+                                    f"Please refresh the product list and try again.")
+                    return
             
-            # Validate product_id exists in database
+            product_data = self.products_data[product_id]
+            print(f"Product data found: {product_data}")
+            
+            # Extract information from stored data
+            product_name = product_data['name']
+            product_price = product_data['price']
+            available_stock = product_data['stock']
+            product_category = product_data['category']
+            
+            # Double-check with database to ensure sync
             cursor = self.main_app.cursor
-            cursor.execute('SELECT name FROM products WHERE product_id = ?', (product_id,))
-            db_product = cursor.fetchone()
+            cursor.execute('SELECT name, stock, price FROM products WHERE product_id = ?', (product_id,))
+            db_check = cursor.fetchone()
             
-            if not db_product:
+            if not db_check:
                 messagebox.showerror("Error", 
-                                f"Product {product_name} (ID: {product_id}) not found in inventory database. "
+                                f"Product {product_name} (ID: {product_id}) not found in database. "
                                 f"Please refresh the product list.")
                 print(f"ERROR: Product ID {product_id} not found in database")
                 return
             
-            print(f"Database confirms product exists: {db_product[0]}")
+            db_name, db_stock, db_price = db_check
+            print(f"Database verification: Name={db_name}, Stock={db_stock}, Price={db_price}")
+            
+            # Update our local data with current database values
+            self.products_data[product_id]['stock'] = int(db_stock)
+            available_stock = int(db_stock)
 
             # Validate stock
             if available_stock <= 0:
                 messagebox.showerror("Error", f"{product_name} is out of stock!")
                 return
 
-            # Ask for quantity
-            quantity = simpledialog.askinteger(
-                "Quantity", 
-                f"Enter quantity for {product_name}:\n(Available: {available_stock})",
-                minvalue=1, 
-                maxvalue=available_stock
-            )
-
-            if not quantity:
+            # Show customer and quantity dialog
+            dialog = CustomerQuantityDialog(self.master, product_name, available_stock)
+            
+            if not dialog.result:
+                print("User cancelled dialog")
                 return
 
-            # Check if product already in cart
+            customer_name = dialog.result['customer_name']
+            quantity = dialog.result['quantity']
+            
+            print(f"Customer: {customer_name}, Quantity: {quantity}")
+
+            # Check if same product and customer already in cart
             for cart_item in self.cart_items:
-                if cart_item['product_id'] == product_id:
+                if (cart_item['product_id'] == product_id and 
+                    cart_item['customer_name'] == customer_name):
                     # Update existing item
                     new_quantity = cart_item['quantity'] + quantity
                     if new_quantity > available_stock:
                         messagebox.showerror("Error", 
                                         f"Not enough stock! Available: {available_stock}, "
-                                        f"Already in cart: {cart_item['quantity']}")
+                                        f"Already in cart for {customer_name}: {cart_item['quantity']}")
                         return
                     cart_item['quantity'] = new_quantity
                     cart_item['total'] = cart_item['quantity'] * cart_item['unit_price']
                     self.refresh_cart()
-                    messagebox.showinfo("Success", f"Updated {product_name} quantity to {new_quantity}!")
+                    messagebox.showinfo("Success", 
+                                      f"Updated {product_name} quantity to {new_quantity} for {customer_name}!")
                     return
 
-            # Create cart item with ALL required fields
+            # Create cart item with ALL required fields including customer name
             cart_item = {
                 'product_id': product_id,
                 'product_name': product_name,
+                'customer_name': customer_name,
                 'unit_price': product_price,
                 'quantity': quantity,
                 'total': product_price * quantity,
                 'category': product_category
             }
 
-            print(f"Adding cart item: {cart_item}")
+            print(f"Creating cart item: {cart_item}")
             
             self.cart_items.append(cart_item)
             self.refresh_cart()
-            messagebox.showinfo("Success", f"Added {quantity} x {product_name} to cart!")
+            messagebox.showinfo("Success", 
+                              f"Added {quantity} x {product_name} to cart for {customer_name}!")
+            
+            print("Cart item added successfully")
+            print("=====================")
 
         except Exception as e:
             print(f"Error in add_to_cart: {e}")
@@ -616,16 +816,22 @@ class SalesEntryFrame(ttk.Frame):
             messagebox.showerror("Error", f"Failed to add product to cart: {str(e)}")
 
     def refresh_cart(self):
-        """Refresh the cart display and total"""
+        """Refresh the cart display and total - Updated to show customer name"""
+        print("=== REFRESHING CART ===")
+        
         # Clear cart tree
         for item in self.cart_tree.get_children():
             self.cart_tree.delete(item)
 
         # Add cart items
         total_amount = 0
-        for item in self.cart_items:
+        for i, item in enumerate(self.cart_items):
+            print(f"Cart item {i}: {item}")
+            
             self.cart_tree.insert('', 'end', values=(
+                item['product_id'],        # Show product_id
                 item['product_name'],
+                item['customer_name'],     # Show customer name
                 item['quantity'],
                 f"₱{item['unit_price']:.2f}",
                 f"₱{item['total']:.2f}"
@@ -634,6 +840,8 @@ class SalesEntryFrame(ttk.Frame):
 
         # Update total
         self.total_var.set(f"₱{total_amount:.2f}")
+        print(f"Cart total: ₱{total_amount:.2f}")
+        print("=====================")
 
     def remove_from_cart(self):
         """Remove selected item from cart"""
@@ -645,7 +853,8 @@ class SalesEntryFrame(ttk.Frame):
         item_index = self.cart_tree.index(selection[0])
         removed_item = self.cart_items.pop(item_index)
         self.refresh_cart()
-        messagebox.showinfo("Success", f"Removed {removed_item['product_name']} from cart!")
+        messagebox.showinfo("Success", 
+                          f"Removed {removed_item['product_name']} for {removed_item['customer_name']} from cart!")
 
     def clear_cart(self):
         """Clear all items from cart"""
@@ -657,6 +866,14 @@ class SalesEntryFrame(ttk.Frame):
             self.cart_items.clear()
             self.refresh_cart()
             messagebox.showinfo("Success", "Cart cleared!")
+
+    def debug_cart_contents(self):
+        """Debug method to print cart contents"""
+        print("=== CART DEBUG ===")
+        print(f"Cart has {len(self.cart_items)} items:")
+        for i, item in enumerate(self.cart_items):
+            print(f"  Item {i}: {item}")
+        print("================")
 
     def process_checkout(self):
         """Process checkout with enhanced validation and error handling"""
@@ -670,9 +887,9 @@ class SalesEntryFrame(ttk.Frame):
             
             print("=== STARTING CHECKOUT ===")
             
-            # Validate each cart item has required fields
+            # Validate each cart item has required fields including customer name
             for i, item in enumerate(self.cart_items):
-                required_fields = ['product_id', 'product_name', 'unit_price', 'quantity']
+                required_fields = ['product_id', 'product_name', 'customer_name', 'unit_price', 'quantity']
                 for field in required_fields:
                     if field not in item or item[field] is None:
                         error_msg = f"Cart item {i} missing required field: {field}"
@@ -691,9 +908,14 @@ class SalesEntryFrame(ttk.Frame):
             payment_method = self.payment_var.get()
             total_amount = sum(item['quantity'] * item['unit_price'] for item in self.cart_items)
             
+            # Create summary for confirmation
+            customers = set(item['customer_name'] for item in self.cart_items)
+            customer_summary = ", ".join(customers) if len(customers) <= 3 else f"{len(customers)} customers"
+            
             # Confirm checkout
             confirm_msg = (f"Confirm checkout:\n\n"
                         f"Items: {len(self.cart_items)}\n"
+                        f"Customers: {customer_summary}\n"
                         f"Total: ₱{total_amount:.2f}\n"
                         f"Payment: {payment_method}\n\n"
                         f"Proceed with transaction?")
@@ -714,12 +936,13 @@ class SalesEntryFrame(ttk.Frame):
                                 f"Transaction completed successfully!\n\n"
                                 f"Transaction ID: {transaction_id}\n"
                                 f"Total Amount: ₱{total_amount:.2f}\n"
-                                f"Payment Method: {payment_method}")
+                                f"Payment Method: {payment_method}\n"
+                                f"Customers: {customer_summary}")
                 
                 # Clear cart and refresh
                 self.cart_items.clear()
                 self.refresh_cart()
-                self.load_all_products()
+                self.load_all_products()  # Refresh to show updated stock
                 
                 # Refresh inventory if visible
                 if hasattr(self.main_app, 'inventory_frame') and self.main_app.inventory_frame:

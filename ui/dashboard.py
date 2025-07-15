@@ -25,7 +25,7 @@ class BikeShopInventorySystem:
         
 
     def init_database(self):
-        """Initialize SQLite database and create tables"""
+        """Initialize SQLite database and create tables - UPDATED with customer name support"""
         self.conn = sqlite3.connect('bike_shop_inventory.db')
         self.cursor = self.conn.cursor()
 
@@ -42,7 +42,7 @@ class BikeShopInventorySystem:
             )
         ''')
 
-        # Create sales table
+        # Create sales table - UPDATED with customer_name field
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS sales (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,12 +50,20 @@ class BikeShopInventorySystem:
                 product_id TEXT,
                 product_name TEXT,
                 product_category TEXT,
+                customer_name TEXT,
                 quantity INTEGER,
                 price REAL,
                 total REAL,
                 sale_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+
+        # Check if customer_name column exists, if not add it
+        self.cursor.execute("PRAGMA table_info(sales)")
+        columns = [column[1] for column in self.cursor.fetchall()]
+        if 'customer_name' not in columns:
+            self.cursor.execute('ALTER TABLE sales ADD COLUMN customer_name TEXT')
+            print("Added customer_name column to sales table")
 
         # Create transactions table
         self.cursor.execute('''
@@ -84,7 +92,7 @@ class BikeShopInventorySystem:
         ''')
 
         self.conn.commit()
-        print("Database initialized successfully")  
+        print("Database initialized successfully with customer name support")
 
     def create_main_interface(self):
         """Create the main interface with sidebar and content area"""
@@ -409,7 +417,7 @@ class BikeShopInventorySystem:
         ttk.Label(categories_frame, text=str(categories_count), style='InsightValue.TLabel').pack(anchor='w')
 
     def create_recent_sales_table(self, parent):
-        """Create recent sales table"""
+        """Create recent sales table - UPDATED to show customer name"""
         # Header
         header_frame = ttk.Frame(parent, style='Card.TFrame')
         header_frame.pack(fill='x', padx=20, pady=(15, 10))
@@ -421,20 +429,20 @@ class BikeShopInventorySystem:
         table_frame = ttk.Frame(parent, style='Card.TFrame')
         table_frame.pack(fill='both', expand=True, padx=20, pady=(0, 15))
         
-        columns = ('#', 'Date', 'Product', 'Category', 'Amount')
+        columns = ('#', 'Date', 'Product', 'Customer', 'Amount')
         tree = ttk.Treeview(table_frame, columns=columns, show='headings', style='Dashboard.Treeview', height=6)
         
         # Configure columns
         tree.heading('#', text='#')
         tree.heading('Date', text='Date')
         tree.heading('Product', text='Product')
-        tree.heading('Category', text='Category')
+        tree.heading('Customer', text='Customer')
         tree.heading('Amount', text='Amount')
         
         tree.column('#', width=30)
         tree.column('Date', width=70)
-        tree.column('Product', width=120)
-        tree.column('Category', width=80)
+        tree.column('Product', width=100)
+        tree.column('Customer', width=80)
         tree.column('Amount', width=80)
         
         # Get recent sales data
@@ -454,8 +462,8 @@ class BikeShopInventorySystem:
             tree.insert('', 'end', values=(
                 f"{i:02d}",
                 formatted_date,
-                sale[1][:15] + "..." if len(sale[1]) > 15 else sale[1],  # product_name
-                sale[3] if sale[3] else "N/A",  # category
+                sale[1][:12] + "..." if len(sale[1]) > 12 else sale[1],  # product_name
+                sale[3][:10] + "..." if sale[3] and len(sale[3]) > 10 else (sale[3] or "N/A"),  # customer_name
                 f"₱{sale[5]:,.2f}"  # total
             ))
         
@@ -605,7 +613,7 @@ class BikeShopInventorySystem:
         print("Inventory interface created successfully")  # Debug print
 
     def create_stock_history_interface(self):
-        """Create the stock history interface"""
+        """Create the stock history interface - UPDATED to show customer names"""
         self.stock_history_frame = ttk.Frame(self.content_frame, style='Content.TFrame')
         
         # Header
@@ -665,9 +673,9 @@ class BikeShopInventorySystem:
         table_frame = ttk.Frame(self.stock_history_frame, style='Content.TFrame')
         table_frame.pack(fill='both', expand=True, padx=30, pady=20)
         
-        # Create treeview for stock history
+        # Create treeview for stock history - UPDATED to include Customer Name
         columns = ('ID', 'Date', 'Time', 'Transaction ID', 'Product Name', 'Product ID', 
-                  'Category', 'Movement Type', 'Quantity', 'Unit Price', 'Total Amount', 'Current Stock')
+                  'Category', 'Customer Name', 'Movement Type', 'Quantity', 'Unit Price', 'Total Amount', 'Current Stock')
         self.stock_history_tree = ttk.Treeview(table_frame, columns=columns, show='headings', 
                                               style='Modern.Treeview')
         
@@ -677,9 +685,10 @@ class BikeShopInventorySystem:
             'Date': 80,
             'Time': 80, 
             'Transaction ID': 120,
-            'Product Name': 150,
-            'Product ID': 100,
+            'Product Name': 120,
+            'Product ID': 80,
             'Category': 80,
+            'Customer Name': 100,
             'Movement Type': 100,
             'Quantity': 70,
             'Unit Price': 80,
@@ -753,7 +762,8 @@ class BikeShopInventorySystem:
                 'date': values[1],
                 'transaction_id': values[3],
                 'product_name': values[4],
-                'movement_type': values[7]
+                'customer_name': values[7],
+                'movement_type': values[8]
             })
         
         # Confirmation dialog
@@ -763,6 +773,7 @@ class BikeShopInventorySystem:
                       f"Date: {item['date']}\n"
                       f"Transaction ID: {item['transaction_id']}\n"
                       f"Product: {item['product_name']}\n"
+                      f"Customer: {item['customer_name']}\n"
                       f"Type: {item['movement_type']}\n\n"
                       f"⚠️ Warning: This action cannot be undone!")
         else:
@@ -905,7 +916,7 @@ class BikeShopInventorySystem:
         self.cursor.execute('SELECT COUNT(*) FROM sales WHERE sale_date >= ?', (seven_days_ago,))
         return self.cursor.fetchone()[0]
 
-    # Product management methods (from original code)
+    # Product management methods
     def add_product(self):
         try:
             dialog = ProductDialog(self.root, "Add Product")
@@ -1090,7 +1101,7 @@ class BikeShopInventorySystem:
             print("Inventory tree not available yet")  # Debug print
 
     def refresh_stock_history(self):
-        """Refresh the stock history display"""
+        """Refresh the stock history display - UPDATED to show customer names"""
         if not hasattr(self, 'stock_history_tree') or not self.stock_history_tree.winfo_exists():
             print("Stock history tree not available yet")
             return
@@ -1105,7 +1116,7 @@ class BikeShopInventorySystem:
             category_filter = self.stock_category_var.get() if hasattr(self, 'stock_category_var') else 'All Categories'
             movement_filter = self.movement_type_var.get() if hasattr(self, 'movement_type_var') else 'All Movements'
             
-            # Base query for sales (stock out) - now including the ID for deletion
+            # Base query for sales (stock out) - UPDATED to include customer_name
             base_query = '''
                 SELECT 
                     s.id,
@@ -1115,6 +1126,7 @@ class BikeShopInventorySystem:
                     s.product_name,
                     s.product_id,
                     s.product_category,
+                    s.customer_name,
                     'Sale (Out)' as movement_type,
                     s.quantity,
                     s.price,
@@ -1157,6 +1169,7 @@ class BikeShopInventorySystem:
                         p.name as product_name,
                         p.product_id,
                         p.category as product_category,
+                        'System' as customer_name,
                         'Stock Added (In)' as movement_type,
                         p.stock as quantity,
                         p.price,
@@ -1188,11 +1201,12 @@ class BikeShopInventorySystem:
                 product_name = record[4] if record[4] else 'Unknown Product'
                 product_id = record[5] if record[5] else 'N/A'
                 category = record[6] if record[6] else 'N/A'
-                movement_type = record[7] if record[7] else 'N/A'
-                quantity = int(record[8]) if record[8] else 0
-                unit_price = float(record[9]) if record[9] else 0.0
-                total_amount = float(record[10]) if record[10] else 0.0
-                current_stock = int(record[11]) if record[11] else 0
+                customer_name = record[7] if record[7] else 'N/A'
+                movement_type = record[8] if record[8] else 'N/A'
+                quantity = int(record[9]) if record[9] else 0
+                unit_price = float(record[10]) if record[10] else 0.0
+                total_amount = float(record[11]) if record[11] else 0.0
+                current_stock = int(record[12]) if record[12] else 0
                 
                 # Insert into treeview (ID is first but hidden)
                 self.stock_history_tree.insert('', 'end', values=(
@@ -1203,6 +1217,7 @@ class BikeShopInventorySystem:
                     product_name,
                     product_id,
                     category,
+                    customer_name,  # Customer name column
                     movement_type,
                     f"{quantity:,}",  # Format quantity with commas
                     f"₱{unit_price:.2f}",
@@ -1236,7 +1251,7 @@ class BikeShopInventorySystem:
 
     def record_sale(self, cart_items, payment_method='Cash'):
         """
-        Record a sale transaction and update inventory - ENHANCED VERSION
+        Record a sale transaction and update inventory - UPDATED with customer name support
         """
         try:
             print(f"Recording sale with {len(cart_items)} items")
@@ -1255,8 +1270,9 @@ class BikeShopInventorySystem:
             
             # Validate and process each item
             for item in cart_items:
-                # Ensure all required fields are present
-                if not all(field in item for field in ['product_id', 'product_name', 'unit_price', 'quantity']):
+                # Ensure all required fields are present including customer_name
+                required_fields = ['product_id', 'product_name', 'customer_name', 'unit_price', 'quantity']
+                if not all(field in item for field in required_fields):
                     self.cursor.execute('ROLLBACK')
                     return False, f"Missing required fields in item: {item}"
                 
@@ -1270,14 +1286,14 @@ class BikeShopInventorySystem:
                 item_total = item['quantity'] * item['unit_price']
                 total_amount += item_total
                 
-                # Insert into sales table
+                # Insert into sales table - UPDATED with customer_name
                 self.cursor.execute('''
                     INSERT INTO sales (transaction_id, product_id, product_name, product_category, 
-                                    quantity, price, total, sale_date)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                    customer_name, quantity, price, total, sale_date)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (transaction_id, item['product_id'], item['product_name'], 
-                    item.get('category', 'N/A'), item['quantity'], item['unit_price'], 
-                    item_total, sale_date))
+                    item.get('category', 'N/A'), item['customer_name'], item['quantity'], 
+                    item['unit_price'], item_total, sale_date))
                 
                 # Update product stock
                 self.cursor.execute('''
@@ -1303,14 +1319,14 @@ class BikeShopInventorySystem:
                     self.cursor.execute('ROLLBACK')
                     return False, f"Stock would become negative for {item['product_name']}"
                 
-                # Record stock movement
+                # Record stock movement - UPDATED with customer info in notes
                 self.cursor.execute('''
                     INSERT INTO stock_movements (product_id, product_name, movement_type, quantity, 
                                             reference_id, reason, notes)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 ''', (item['product_id'], item['product_name'], 'OUT', 
                     item['quantity'], transaction_id, 'SALE', 
-                    f'Sold {item["quantity"]} units. New stock: {updated_stock[0]}'))
+                    f'Sold {item["quantity"]} units to {item["customer_name"]}. New stock: {updated_stock[0]}'))
             
             # Insert into transactions table
             self.cursor.execute('''
@@ -1453,10 +1469,10 @@ class BikeShopInventorySystem:
             return False
 
     def get_recent_sales(self, limit=10):
-        """Get recent sales for display"""
+        """Get recent sales for display - UPDATED to include customer name"""
         try:
             self.cursor.execute('''
-                SELECT sale_date, product_name, product_id, product_category, quantity, total
+                SELECT sale_date, product_name, product_id, customer_name, quantity, total
                 FROM sales 
                 ORDER BY sale_date DESC 
                 LIMIT ?
@@ -1515,14 +1531,14 @@ class BikeShopInventorySystem:
             }
 
     def validate_transaction(self, cart_items):
-        """Enhanced validation with database verification"""
+        """Enhanced validation with database verification - UPDATED for customer names"""
         if not cart_items:
             return False, "Cart is empty"
         
         try:
             for item in cart_items:
-                # Check required fields
-                required_fields = ['product_id', 'product_name', 'unit_price', 'quantity']
+                # Check required fields including customer_name
+                required_fields = ['product_id', 'product_name', 'customer_name', 'unit_price', 'quantity']
                 for field in required_fields:
                     if field not in item or item[field] is None:
                         return False, f"Missing {field} for item: {item.get('product_name', 'Unknown')}"
@@ -1548,6 +1564,10 @@ class BikeShopInventorySystem:
                 
                 if item['unit_price'] <= 0:
                     return False, f"Invalid price for {item['product_name']}"
+                
+                # Validate customer name
+                if not item['customer_name'].strip():
+                    return False, f"Customer name is required for {item['product_name']}"
             
             return True, "Valid transaction"
             
@@ -1600,11 +1620,11 @@ class BikeShopInventorySystem:
                 # Record the return in sales table (negative quantity)
                 self.cursor.execute('''
                     INSERT INTO sales (transaction_id, product_id, product_name, product_category, 
-                                     quantity, price, total, sale_date)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                     customer_name, quantity, price, total, sale_date)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (return_transaction_id, item['product_id'], item['product_name'], 
-                      item.get('category', 'N/A'), -item['quantity'], item['unit_price'], 
-                      -item['total'], return_date))
+                      item.get('category', 'N/A'), item.get('customer_name', 'Return Customer'),
+                      -item['quantity'], item['unit_price'], -item['total'], return_date))
                 
                 # Record stock movement
                 self.cursor.execute('''
@@ -1613,7 +1633,7 @@ class BikeShopInventorySystem:
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 ''', (item['product_id'], item['product_name'], 'IN', 
                       item['quantity'], return_transaction_id, 'RETURN', 
-                      f'Product returned from transaction {transaction_id}'))
+                      f'Product returned from transaction {transaction_id} by {item.get("customer_name", "Customer")}'))
             
             self.cursor.execute('COMMIT')
             
