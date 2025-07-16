@@ -322,8 +322,11 @@ class ModernSidebar(ttk.Frame):
         # Sales Entry button
         self.sales_entry_btn = self.create_nav_button(nav_frame, "🛒", "Point of Sale", self.main_app.show_sales_entry)
         
+        # Statistics button (NEW)
+        self.statistics_btn = self.create_nav_button(nav_frame, "📈", "Statistics", self.main_app.show_statistics)
+        
         # Stock History button
-        self.stock_history_btn = self.create_nav_button(nav_frame, "📈", "Stock History", self.main_app.show_stock_history)
+        self.stock_history_btn = self.create_nav_button(nav_frame, "📋", "Stock History", self.main_app.show_stock_history)
         
         # Inventory button
         self.inventory_btn = self.create_nav_button(nav_frame, "📦", "Inventory", self.main_app.show_inventory)
@@ -343,6 +346,7 @@ class ModernSidebar(ttk.Frame):
         self.nav_buttons = {
             'dashboard': self.dashboard_btn,
             'sales_entry': self.sales_entry_btn,
+            'statistics': self.statistics_btn,
             'stock_history': self.stock_history_btn,
             'inventory': self.inventory_btn,
             'services': self.services_btn

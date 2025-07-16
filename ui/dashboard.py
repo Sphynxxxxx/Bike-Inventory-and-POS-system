@@ -111,6 +111,7 @@ class BikeShopInventorySystem:
         # Initialize content frames (but don't pack them yet)
         self.sales_entry_frame = None
         self.dashboard_frame = None
+        self.statistics_frame = None
         self.inventory_frame = None
         self.stock_history_frame = None
         self.services_frame = None
@@ -130,6 +131,14 @@ class BikeShopInventorySystem:
             self.create_dashboard_interface()
         self.dashboard_frame.pack(fill='both', expand=True)
         self.sidebar.set_active('dashboard')
+
+    def show_statistics(self):
+        """Show the statistics interface"""
+        self.hide_all_frames()
+        if not self.statistics_frame:
+            self.create_statistics_interface()
+        self.statistics_frame.pack(fill='both', expand=True)
+        self.sidebar.set_active('statistics')
 
     def show_inventory(self):
         """Show the inventory interface"""
@@ -161,13 +170,13 @@ class BikeShopInventorySystem:
 
     def hide_all_frames(self):
         """Hide all content frames"""
-        for frame in [self.sales_entry_frame, self.dashboard_frame, 
+        for frame in [self.sales_entry_frame, self.dashboard_frame, self.statistics_frame,
                      self.inventory_frame, self.stock_history_frame, self.services_frame]:
             if frame:
                 frame.pack_forget()
 
     def create_dashboard_interface(self):
-        """Create the dashboard with statistics"""
+        """Create the simplified dashboard without charts"""
         self.dashboard_frame = ttk.Frame(self.content_frame, style='Content.TFrame')
         
         # Header
@@ -183,30 +192,33 @@ class BikeShopInventorySystem:
         # Create stats cards
         self.create_dashboard_stats_cards(stats_container)
         
-        # Main content area with charts and tables
+        # Main content area with tables only
         main_content = ttk.Frame(self.dashboard_frame, style='Content.TFrame')
         main_content.pack(fill='both', expand=True, padx=30, pady=(0, 20))
         
-        # Top row - Charts
-        charts_row = ttk.Frame(main_content, style='Content.TFrame')
-        charts_row.pack(fill='x', pady=(0, 20))
+        # Quick Actions Section
+        quick_actions_frame = ttk.Frame(main_content, style='Card.TFrame')
+        quick_actions_frame.pack(fill='x', pady=(0, 20))
         
-        # Left chart - Monthly Sales Trend
-        left_chart_frame = ttk.Frame(charts_row, style='Card.TFrame')
-        left_chart_frame.pack(side='left', fill='both', expand=True, padx=(0, 10))
-        self.create_monthly_sales_chart(left_chart_frame)
+        # Header for quick actions
+        qa_header = ttk.Frame(quick_actions_frame, style='Card.TFrame')
+        qa_header.pack(fill='x', padx=20, pady=(15, 10))
+        ttk.Label(qa_header, text="Quick Actions", style='SectionTitle.TLabel').pack(side='left')
         
-        # Middle chart - Sales by Category
-        middle_chart_frame = ttk.Frame(charts_row, style='Card.TFrame')
-        middle_chart_frame.pack(side='left', fill='both', expand=True, padx=(5, 5))
-        self.create_category_sales_chart(middle_chart_frame)
+        # Quick action buttons
+        qa_content = ttk.Frame(quick_actions_frame, style='Card.TFrame')
+        qa_content.pack(fill='x', padx=20, pady=(0, 15))
         
-        # Right section - Inventory Insights
-        right_insights_frame = ttk.Frame(charts_row, style='Card.TFrame')
-        right_insights_frame.pack(side='right', fill='y', padx=(10, 0))
-        self.create_inventory_insights(right_insights_frame)
+        ttk.Button(qa_content, text="🛒 New Sale", command=self.show_sales_entry,
+                  style='Primary.TButton').pack(side='left', padx=(0, 10))
+        ttk.Button(qa_content, text="📦 Add Product", command=self.add_product,
+                  style='Secondary.TButton').pack(side='left', padx=(0, 10))
+        ttk.Button(qa_content, text="📊 View Statistics", command=self.show_statistics,
+                  style='Secondary.TButton').pack(side='left', padx=(0, 10))
+        ttk.Button(qa_content, text="📈 Stock History", command=self.show_stock_history,
+                  style='Secondary.TButton').pack(side='left')
         
-        # Bottom row - Tables
+        # Tables row
         tables_row = ttk.Frame(main_content, style='Content.TFrame')
         tables_row.pack(fill='both', expand=True)
         
@@ -215,10 +227,73 @@ class BikeShopInventorySystem:
         recent_sales_frame.pack(side='left', fill='both', expand=True, padx=(0, 10))
         self.create_recent_sales_table(recent_sales_frame)
         
-        # Right table - Stock Alert
+        # Middle table - Low Stock Alert
         stock_alert_frame = ttk.Frame(tables_row, style='Card.TFrame')
-        stock_alert_frame.pack(side='right', fill='both', expand=True, padx=(10, 0))
+        stock_alert_frame.pack(side='left', fill='both', expand=True, padx=(5, 5))
         self.create_stock_alert_table(stock_alert_frame)
+        
+        # Right section - Today's Summary
+        summary_frame = ttk.Frame(tables_row, style='Card.TFrame')
+        summary_frame.pack(side='right', fill='y', padx=(10, 0))
+        self.create_today_summary(summary_frame)
+
+    def create_statistics_interface(self):
+        """Create the statistics interface with charts and top buyers"""
+        self.statistics_frame = ttk.Frame(self.content_frame, style='Content.TFrame')
+        
+        # Header
+        header_frame = ttk.Frame(self.statistics_frame, style='Content.TFrame')
+        header_frame.pack(fill='x', padx=30, pady=20)
+        
+        ttk.Label(header_frame, text="Statistics & Analytics", style='PageTitle.TLabel').pack(side='left')
+        
+        # Refresh button
+        ttk.Button(header_frame, text="🔄 Refresh", command=self.refresh_statistics,
+                  style='Secondary.TButton').pack(side='right')
+        
+        # Filter controls
+        filter_frame = ttk.Frame(self.statistics_frame, style='Content.TFrame')
+        filter_frame.pack(fill='x', padx=30, pady=(0, 20))
+        
+        ttk.Label(filter_frame, text="Time Period:", style='FieldLabel.TLabel').pack(side='left', padx=(0, 10))
+        self.stats_period_var = tk.StringVar(value='Last 30 Days')
+        period_combo = ttk.Combobox(filter_frame, textvariable=self.stats_period_var,
+                                   values=['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'This Year', 'All Time'],
+                                   state='readonly', style='Modern.TCombobox', width=15)
+        period_combo.pack(side='left', padx=(0, 20))
+        period_combo.bind('<<ComboboxSelected>>', self.update_statistics)
+        
+        # Main statistics content
+        stats_content = ttk.Frame(self.statistics_frame, style='Content.TFrame')
+        stats_content.pack(fill='both', expand=True, padx=30, pady=(0, 20))
+        
+        # Top row - Charts
+        charts_row = ttk.Frame(stats_content, style='Content.TFrame')
+        charts_row.pack(fill='x', pady=(0, 20))
+        
+        # Left chart - Monthly Sales Trend
+        left_chart_frame = ttk.Frame(charts_row, style='Card.TFrame')
+        left_chart_frame.pack(side='left', fill='both', expand=True, padx=(0, 10))
+        self.create_monthly_sales_chart(left_chart_frame)
+        
+        # Right chart - Sales by Category
+        right_chart_frame = ttk.Frame(charts_row, style='Card.TFrame')
+        right_chart_frame.pack(side='right', fill='both', expand=True, padx=(10, 0))
+        self.create_category_sales_chart(right_chart_frame)
+        
+        # Bottom row - Tables
+        tables_row = ttk.Frame(stats_content, style='Content.TFrame')
+        tables_row.pack(fill='both', expand=True)
+        
+        # Left table - Top Buyers
+        top_buyers_frame = ttk.Frame(tables_row, style='Card.TFrame')
+        top_buyers_frame.pack(side='left', fill='both', expand=True, padx=(0, 10))
+        self.create_top_buyers_table(top_buyers_frame)
+        
+        # Right table - Product Performance
+        product_performance_frame = ttk.Frame(tables_row, style='Card.TFrame')
+        product_performance_frame.pack(side='right', fill='both', expand=True, padx=(10, 0))
+        self.create_product_performance_table(product_performance_frame)
 
     def create_dashboard_stats_cards(self, parent):
         """Create modern statistics cards"""
@@ -272,6 +347,42 @@ class BikeShopInventorySystem:
         change_label = ttk.Label(content_frame, text=change, foreground=change_color, 
                                 font=('Helvetica', 9), background='#ffffff')
         change_label.pack(anchor='w', pady=(5, 0))
+
+    def create_today_summary(self, parent):
+        """Create today's sales summary"""
+        # Header
+        header_frame = ttk.Frame(parent, style='Card.TFrame')
+        header_frame.pack(fill='x', padx=20, pady=(15, 10))
+        
+        ttk.Label(header_frame, text="Today's Summary", style='SectionTitle.TLabel').pack()
+        
+        # Content
+        content_frame = ttk.Frame(parent, style='Card.TFrame')
+        content_frame.pack(fill='both', expand=True, padx=20, pady=(0, 15))
+        
+        # Get today's data
+        today_data = self.get_today_summary()
+        
+        # Today's Sales
+        sales_frame = ttk.Frame(content_frame, style='Card.TFrame')
+        sales_frame.pack(fill='x', pady=(0, 15))
+        
+        ttk.Label(sales_frame, text="Sales Today", style='InsightTitle.TLabel').pack(anchor='w')
+        ttk.Label(sales_frame, text=str(today_data['sales_count']), style='InsightValue.TLabel').pack(anchor='w')
+        
+        # Today's Revenue
+        revenue_frame = ttk.Frame(content_frame, style='Card.TFrame')
+        revenue_frame.pack(fill='x', pady=(0, 15))
+        
+        ttk.Label(revenue_frame, text="Revenue Today", style='InsightTitle.TLabel').pack(anchor='w')
+        ttk.Label(revenue_frame, text=f"₱{today_data['revenue']:.2f}", style='InsightValue.TLabel').pack(anchor='w')
+        
+        # Items Sold
+        items_frame = ttk.Frame(content_frame, style='Card.TFrame')
+        items_frame.pack(fill='x')
+        
+        ttk.Label(items_frame, text="Items Sold", style='InsightTitle.TLabel').pack(anchor='w')
+        ttk.Label(items_frame, text=str(today_data['items_sold']), style='InsightValue.TLabel').pack(anchor='w')
 
     def create_monthly_sales_chart(self, parent):
         """Create monthly sales trend chart"""
@@ -343,15 +454,6 @@ class BikeShopInventorySystem:
         
         ttk.Label(header_frame, text="Sales by Category", style='SectionTitle.TLabel').pack(side='left')
         
-        # Year selector
-        year_frame = ttk.Frame(header_frame, style='Card.TFrame')
-        year_frame.pack(side='right')
-        
-        year_var = tk.StringVar(value='2025')
-        year_combo = ttk.Combobox(year_frame, textvariable=year_var, values=['2023', '2024', '2025'], 
-                                 width=8, state='readonly', style='Modern.TCombobox')
-        year_combo.pack()
-        
         # Chart area
         chart_frame = ttk.Frame(parent, style='Card.TFrame')
         chart_frame.pack(fill='both', expand=True, padx=20, pady=(10, 15))
@@ -388,33 +490,81 @@ class BikeShopInventorySystem:
         canvas.draw()
         canvas.get_tk_widget().pack(fill='both', expand=True)
 
-    def create_inventory_insights(self, parent):
-        """Create inventory insights card"""
+    def create_top_buyers_table(self, parent):
+        """Create top buyers table"""
         # Header
         header_frame = ttk.Frame(parent, style='Card.TFrame')
         header_frame.pack(fill='x', padx=20, pady=(15, 10))
         
-        ttk.Label(header_frame, text="Inventory Insights", style='SectionTitle.TLabel').pack()
+        ttk.Label(header_frame, text="Top Buyers", style='SectionTitle.TLabel').pack(side='left')
         
-        # Content
-        content_frame = ttk.Frame(parent, style='Card.TFrame')
-        content_frame.pack(fill='both', expand=True, padx=20, pady=(0, 15))
+        # Table
+        table_frame = ttk.Frame(parent, style='Card.TFrame')
+        table_frame.pack(fill='both', expand=True, padx=20, pady=(0, 15))
         
-        # Low Stock Items
-        low_stock_frame = ttk.Frame(content_frame, style='Card.TFrame')
-        low_stock_frame.pack(fill='x', pady=(0, 15))
+        columns = ('Rank', 'Customer', 'Purchases', 'Total Amount')
+        tree = ttk.Treeview(table_frame, columns=columns, show='headings', style='Dashboard.Treeview', height=8)
         
-        ttk.Label(low_stock_frame, text="Low Stock Items", style='InsightTitle.TLabel').pack(anchor='w')
-        low_stock_count = self.get_low_stock_count()
-        ttk.Label(low_stock_frame, text=str(low_stock_count), style='InsightValue.TLabel').pack(anchor='w')
+        # Configure columns
+        tree.heading('Rank', text='#')
+        tree.heading('Customer', text='Customer')
+        tree.heading('Purchases', text='Purchases')
+        tree.heading('Total Amount', text='Total Amount')
         
-        # Categories
-        categories_frame = ttk.Frame(content_frame, style='Card.TFrame')
-        categories_frame.pack(fill='x')
+        tree.column('Rank', width=30)
+        tree.column('Customer', width=120)
+        tree.column('Purchases', width=80)
+        tree.column('Total Amount', width=100)
         
-        ttk.Label(categories_frame, text="Categories", style='InsightTitle.TLabel').pack(anchor='w')
-        categories_count = self.get_categories_count()
-        ttk.Label(categories_frame, text=str(categories_count), style='InsightValue.TLabel').pack(anchor='w')
+        # Get top buyers data
+        top_buyers = self.get_top_buyers()
+        for i, buyer in enumerate(top_buyers, 1):
+            tree.insert('', 'end', values=(
+                f"{i:02d}",
+                buyer[0][:15] + "..." if len(buyer[0]) > 15 else buyer[0],  # customer_name
+                buyer[1],  # purchase_count
+                f"₱{buyer[2]:,.2f}"  # total_amount
+            ))
+        
+        tree.pack(fill='both', expand=True)
+
+    def create_product_performance_table(self, parent):
+        """Create product performance table"""
+        # Header
+        header_frame = ttk.Frame(parent, style='Card.TFrame')
+        header_frame.pack(fill='x', padx=20, pady=(15, 10))
+        
+        ttk.Label(header_frame, text="Top Products", style='SectionTitle.TLabel').pack(side='left')
+        
+        # Table
+        table_frame = ttk.Frame(parent, style='Card.TFrame')
+        table_frame.pack(fill='both', expand=True, padx=20, pady=(0, 15))
+        
+        columns = ('Rank', 'Product', 'Sold', 'Revenue')
+        tree = ttk.Treeview(table_frame, columns=columns, show='headings', style='Dashboard.Treeview', height=8)
+        
+        # Configure columns
+        tree.heading('Rank', text='#')
+        tree.heading('Product', text='Product')
+        tree.heading('Sold', text='Sold')
+        tree.heading('Revenue', text='Revenue')
+        
+        tree.column('Rank', width=30)
+        tree.column('Product', width=120)
+        tree.column('Sold', width=60)
+        tree.column('Revenue', width=100)
+        
+        # Get top products data
+        top_products = self.get_top_products()
+        for i, product in enumerate(top_products, 1):
+            tree.insert('', 'end', values=(
+                f"{i:02d}",
+                product[0][:15] + "..." if len(product[0]) > 15 else product[0],  # product_name
+                product[1],  # quantity_sold
+                f"₱{product[2]:,.2f}"  # total_revenue
+            ))
+        
+        tree.pack(fill='both', expand=True)
 
     def create_recent_sales_table(self, parent):
         """Create recent sales table - UPDATED to show customer name"""
@@ -511,7 +661,20 @@ class BikeShopInventorySystem:
                                        style='NoData.TLabel')
             no_alerts_label.pack(expand=True)
 
-    # Additional database helper methods for dashboard
+    def refresh_statistics(self):
+        """Refresh statistics interface"""
+        if hasattr(self, 'statistics_frame') and self.statistics_frame:
+            # Destroy and recreate the statistics frame
+            self.statistics_frame.destroy()
+            self.statistics_frame = None
+            self.create_statistics_interface()
+            self.statistics_frame.pack(fill='both', expand=True)
+
+    def update_statistics(self, event=None):
+        """Update statistics based on filter changes"""
+        self.refresh_statistics()
+
+    # Additional database helper methods for dashboard and statistics
     def get_total_sales_count(self):
         """Get total number of sales transactions"""
         self.cursor.execute('SELECT COUNT(*) FROM sales')
@@ -522,6 +685,29 @@ class BikeShopInventorySystem:
         self.cursor.execute('SELECT SUM(stock) FROM products')
         result = self.cursor.fetchone()[0]
         return result if result else 0
+
+    def get_today_summary(self):
+        """Get today's sales summary"""
+        today = datetime.now().strftime('%Y-%m-%d')
+        try:
+            # Sales count
+            self.cursor.execute('''
+                SELECT COUNT(DISTINCT transaction_id) as sales_count,
+                       SUM(quantity) as items_sold,
+                       SUM(total) as revenue
+                FROM sales 
+                WHERE DATE(sale_date) = ?
+            ''', (today,))
+            result = self.cursor.fetchone()
+            
+            return {
+                'sales_count': result[0] if result[0] else 0,
+                'items_sold': result[1] if result[1] else 0,
+                'revenue': result[2] if result[2] else 0.0
+            }
+        except Exception as e:
+            print(f"Error getting today's summary: {e}")
+            return {'sales_count': 0, 'items_sold': 0, 'revenue': 0.0}
 
     def get_monthly_sales_data(self):
         """Get monthly sales data for chart"""
@@ -546,6 +732,43 @@ class BikeShopInventorySystem:
             ORDER BY total_sales DESC
         ''')
         return self.cursor.fetchall()
+
+    def get_top_buyers(self, limit=10):
+        """Get top buyers by total purchase amount"""
+        try:
+            self.cursor.execute('''
+                SELECT 
+                    customer_name,
+                    COUNT(DISTINCT transaction_id) as purchase_count,
+                    SUM(total) as total_amount
+                FROM sales 
+                WHERE customer_name IS NOT NULL AND customer_name != ''
+                GROUP BY customer_name
+                ORDER BY total_amount DESC
+                LIMIT ?
+            ''', (limit,))
+            return self.cursor.fetchall()
+        except Exception as e:
+            print(f"Error getting top buyers: {e}")
+            return []
+
+    def get_top_products(self, limit=10):
+        """Get top products by quantity sold"""
+        try:
+            self.cursor.execute('''
+                SELECT 
+                    product_name,
+                    SUM(quantity) as quantity_sold,
+                    SUM(total) as total_revenue
+                FROM sales 
+                GROUP BY product_name
+                ORDER BY quantity_sold DESC
+                LIMIT ?
+            ''', (limit,))
+            return self.cursor.fetchall()
+        except Exception as e:
+            print(f"Error getting top products: {e}")
+            return []
 
     def get_categories_count(self):
         """Get number of distinct categories"""
