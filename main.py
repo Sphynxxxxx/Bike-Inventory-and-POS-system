@@ -21,7 +21,7 @@ def login():
 def open_dashboard():
     # Run the dashboard script
     try:
-        subprocess.Popen(["python", "ui/dashboard.py"])
+        subprocess.Popen(["python", "ui/main.py"])
     except Exception as e:
         messagebox.showerror("Error", f"Could not open dashboard: {e}")
 

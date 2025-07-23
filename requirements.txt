@@ -1,0 +1,19 @@
+# Bike Shop Inventory System Requirements
+# Install with: pip install -r requirements.txt
+
+# Core GUI framework (usually included with Python)
+tkinter
+
+# Data visualization for charts
+matplotlib>=3.5.0
+
+# Date and time handling (built-in)
+datetime
+
+# Database (built-in with Python)
+sqlite3
+
+# System utilities (built-in)
+sys
+io
+uuid
