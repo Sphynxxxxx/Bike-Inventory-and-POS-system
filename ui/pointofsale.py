@@ -9,6 +9,7 @@ class PointOfSaleModule:
         self.frame = None
         self.cart_items = []
         self.current_customer = ""
+        self.all_products = []  # Store all products for filtering
         
     def create_interface(self):
         """Create the Point of Sale interface"""
@@ -42,41 +43,68 @@ class PointOfSaleModule:
         left_panel = ttk.Frame(main_content, style='Card.TFrame')
         left_panel.pack(side='left', fill='both', expand=True, padx=(0, 10))
         
-        # Product search
+        # Product search and filter section
         search_header = ttk.Frame(left_panel, style='Card.TFrame')
         search_header.pack(fill='x', padx=20, pady=(15, 10))
-        ttk.Label(search_header, text="Product Search", style='SectionTitle.TLabel').pack(side='left')
+        ttk.Label(search_header, text="Product Search & Filter", style='SectionTitle.TLabel').pack(side='left')
         
+        # Category filter
+        filter_frame = ttk.Frame(left_panel, style='Card.TFrame')
+        filter_frame.pack(fill='x', padx=20, pady=(0, 10))
+        
+        ttk.Label(filter_frame, text="Category:", style='FieldLabel.TLabel').pack(side='left', padx=(0, 5))
+        self.category_var = tk.StringVar(value='All Categories')
+        self.category_combo = ttk.Combobox(filter_frame, textvariable=self.category_var,
+                                          state='readonly', style='Modern.TCombobox', width=18)
+        self.category_combo.pack(side='left', padx=(0, 10))
+        self.category_combo.bind('<<ComboboxSelected>>', self.filter_by_category)
+        
+        # Clear filter button
+        ttk.Button(filter_frame, text="Clear Filter", command=self.clear_category_filter,
+                  style='Secondary.TButton').pack(side='left')
+        
+        # Product search
         search_frame = ttk.Frame(left_panel, style='Card.TFrame')
         search_frame.pack(fill='x', padx=20, pady=(0, 15))
         
+        ttk.Label(search_frame, text="Search:", style='FieldLabel.TLabel').pack(side='left', padx=(0, 5))
         self.search_var = tk.StringVar()
         self.search_entry = ttk.Entry(search_frame, textvariable=self.search_var, 
-                                     style='Modern.TEntry', width=25)
+                                     style='Modern.TEntry', width=20)
         self.search_entry.pack(side='left', padx=(0, 10))
-        self.search_entry.bind('<KeyRelease>', self.filter_products)
+        self.search_entry.bind('<KeyRelease>', self.apply_filters)
         self.search_entry.bind('<Return>', self.add_first_product)
         
         ttk.Button(search_frame, text="Add", command=self.add_selected_product,
                   style='Primary.TButton').pack(side='left')
+        
+        # Product count label
+        count_frame = ttk.Frame(left_panel, style='Card.TFrame')
+        count_frame.pack(fill='x', padx=20, pady=(0, 5))
+        
+        self.product_count_var = tk.StringVar(value="Products: 0")
+        ttk.Label(count_frame, textvariable=self.product_count_var, 
+                 style='FieldLabel.TLabel').pack(side='left')
         
         # Product list
         product_list_frame = ttk.Frame(left_panel, style='Card.TFrame')
         product_list_frame.pack(fill='both', expand=True, padx=20, pady=(0, 15))
         
         # Products treeview
-        product_columns = ('ID', 'Name', 'Price', 'Stock')
+        product_columns = ('ID', 'Name', 'Category', 'Price', 'Stock')
         self.product_tree = ttk.Treeview(product_list_frame, columns=product_columns, 
                                         show='headings', style='Modern.Treeview', height=15)
         
         for col in product_columns:
             self.product_tree.heading(col, text=col)
             if col == 'ID':
-                self.product_tree.column(col, width=80)
+                self.product_tree.column(col, width=60)
             elif col == 'Name':
-                self.product_tree.column(col, width=200)
-            else:
+                self.product_tree.column(col, width=150)
+            elif col == 'Category':
                 self.product_tree.column(col, width=100)
+            else:
+                self.product_tree.column(col, width=80)
         
         # Scrollbar for products
         product_scrollbar = ttk.Scrollbar(product_list_frame, orient='vertical', 
@@ -99,6 +127,14 @@ class PointOfSaleModule:
         ttk.Label(cart_header, text="Shopping Cart", style='SectionTitle.TLabel').pack(side='left')
         ttk.Button(cart_header, text="Clear Cart", command=self.clear_cart,
                   style='Danger.TButton').pack(side='right')
+        
+        # Cart items count
+        cart_count_frame = ttk.Frame(right_panel, style='Card.TFrame')
+        cart_count_frame.pack(fill='x', padx=20, pady=(0, 10))
+        
+        self.cart_count_var = tk.StringVar(value="Items: 0")
+        ttk.Label(cart_count_frame, textvariable=self.cart_count_var, 
+                 style='FieldLabel.TLabel').pack(side='left')
         
         # Cart items
         cart_frame = ttk.Frame(right_panel, style='Card.TFrame')
@@ -156,8 +192,9 @@ class PointOfSaleModule:
         ttk.Button(checkout_frame, text="💳 CHECKOUT", command=self.process_checkout,
                   style='Success.TButton').pack(fill='x', pady=(10, 0))
         
-        # Load products
+        # Load products and categories
         self.load_products()
+        self.load_categories()
         
         # Focus customer entry
         self.customer_entry.focus()
@@ -169,47 +206,100 @@ class PointOfSaleModule:
         self.search_entry.focus()
     
     def load_products(self):
-        """Load all products into the product list"""
+        """Load all products into memory and display"""
         try:
-            # Clear existing items
-            for item in self.product_tree.get_children():
-                self.product_tree.delete(item)
-            
-            # Get all products
-            products = self.main_app.get_all_products()
-            
-            for product in products:
-                self.product_tree.insert('', 'end', values=(
-                    product[0],  # product_id
-                    product[1],  # name
-                    f"₱{product[2]:.2f}",  # price
-                    product[3]   # stock
-                ))
+            # Get all products and store them
+            self.all_products = self.main_app.get_all_products()
+            self.display_products(self.all_products)
                 
         except Exception as e:
             print(f"Error loading products: {e}")
             messagebox.showerror("Error", f"Failed to load products: {str(e)}")
     
-    def filter_products(self, event=None):
-        """Filter products based on search term"""
-        search_term = self.search_var.get().lower()
-        
+    def load_categories(self):
+        """Load unique categories for the filter dropdown"""
+        try:
+            # Get unique categories from products
+            categories = set()
+            for product in self.all_products:
+                # Assuming category is at index 4, adjust if needed
+                if len(product) > 4:
+                    categories.add(product[4])
+                else:
+                    categories.add('General')  # Default category
+            
+            # Update category dropdown
+            category_list = ['All Categories'] + sorted(list(categories))
+            self.category_combo['values'] = category_list
+            
+        except Exception as e:
+            print(f"Error loading categories: {e}")
+            # Set default if error
+            self.category_combo['values'] = ['All Categories', 'General']
+    
+    def display_products(self, products):
+        """Display products in the treeview"""
         # Clear existing items
         for item in self.product_tree.get_children():
             self.product_tree.delete(item)
         
-        # Get all products and filter
-        products = self.main_app.get_all_products()
-        
+        # Add products to treeview
         for product in products:
-            if (search_term in product[1].lower() or  # name
-                search_term in product[0].lower()):   # product_id
-                self.product_tree.insert('', 'end', values=(
-                    product[0],  # product_id
-                    product[1],  # name
-                    f"₱{product[2]:.2f}",  # price
-                    product[3]   # stock
-                ))
+            # Handle products with or without category
+            if len(product) > 4:
+                category = product[4]
+            else:
+                category = 'General'
+                
+            self.product_tree.insert('', 'end', values=(
+                product[0],  # product_id
+                product[1],  # name
+                category,    # category
+                f"₱{product[2]:.2f}",  # price
+                product[3]   # stock
+            ))
+        
+        # Update product count
+        self.product_count_var.set(f"Products: {len(products)}")
+    
+    def filter_by_category(self, event=None):
+        """Filter products by selected category"""
+        self.apply_filters()
+    
+    def clear_category_filter(self):
+        """Clear category filter"""
+        self.category_var.set('All Categories')
+        self.apply_filters()
+    
+    def apply_filters(self, event=None):
+        """Apply both category and search filters"""
+        selected_category = self.category_var.get()
+        search_term = self.search_var.get().lower()
+        
+        filtered_products = []
+        
+        for product in self.all_products:
+            # Get product category
+            if len(product) > 4:
+                product_category = product[4]
+            else:
+                product_category = 'General'
+            
+            # Apply category filter
+            category_match = (selected_category == 'All Categories' or 
+                            product_category == selected_category)
+            
+            # Apply search filter
+            search_match = (not search_term or 
+                          search_term in product[1].lower() or  # name
+                          search_term in product[0].lower())    # product_id
+            
+            # Include product if both filters match
+            if category_match and search_match:
+                filtered_products.append(product)
+        
+        # Display filtered products
+        self.display_products(filtered_products)
     
     def add_first_product(self, event=None):
         """Add the first product in the filtered list"""
@@ -239,9 +329,10 @@ class PointOfSaleModule:
         
         product_id = product_data[0]
         product_name = product_data[1]
-        price_str = product_data[2].replace('₱', '').replace(',', '')
+        category = product_data[2]
+        price_str = product_data[3].replace('₱', '').replace(',', '')
         price = float(price_str)
-        stock = int(product_data[3])
+        stock = int(product_data[4])
         
         if stock <= 0:
             messagebox.showwarning("Warning", f"'{product_name}' is out of stock!")
@@ -267,7 +358,7 @@ class PointOfSaleModule:
             'customer_name': self.customer_var.get().strip(),
             'unit_price': price,
             'quantity': 1,
-            'category': 'General'  # You can enhance this to get actual category
+            'category': category
         }
         
         self.cart_items.append(cart_item)
@@ -275,7 +366,7 @@ class PointOfSaleModule:
         
         # Clear search and focus back to search
         self.search_var.set("")
-        self.filter_products()
+        self.apply_filters()
         self.search_entry.focus()
     
     def refresh_cart(self):
@@ -300,6 +391,9 @@ class PointOfSaleModule:
         
         # Update total display
         self.total_var.set(f"₱{total:,.2f}")
+        
+        # Update cart count
+        self.cart_count_var.set(f"Items: {len(self.cart_items)}")
     
     def remove_cart_item(self, event=None):
         """Remove selected item from cart"""
@@ -448,7 +542,7 @@ class PointOfSaleModule:
             item_frame = ttk.Frame(items_frame)
             item_frame.pack(fill='x', pady=2)
             
-            ttk.Label(item_frame, text=item['product_name']).pack(anchor='w')
+            ttk.Label(item_frame, text=f"{item['product_name']} ({item['category']})").pack(anchor='w')
             ttk.Label(item_frame, text=f"  {item['quantity']} x ₱{item['unit_price']:.2f} = ₱{item['quantity'] * item['unit_price']:.2f}").pack(anchor='w')
         
         # Separator
@@ -473,5 +567,6 @@ class PointOfSaleModule:
         """Refresh the POS interface"""
         if self.frame:
             self.load_products()
+            self.load_categories()
             return self.frame
         return None

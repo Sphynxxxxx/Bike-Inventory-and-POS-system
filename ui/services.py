@@ -1057,14 +1057,16 @@ class ServicesModule:
         self.open_status_update_dialog(booking_id, current_status, current_payment, customer_name, service_name)
     
     def open_status_update_dialog(self, booking_id, current_status, current_payment, customer_name, service_name):
-        """Open enhanced status update dialog with improved readability"""
+        """Open enhanced status update dialog with improved readability and scrollable content"""
         try:
             # Create dialog window
             dialog = tk.Toplevel()
             dialog.title("Update Booking Status")
-            dialog.geometry("500x550")
+            dialog.geometry("520x650")
             dialog.configure(bg='#f8fafc')
-            dialog.resizable(False, False)
+            dialog.resizable(True, True)
+            dialog.minsize(480, 600)
+            dialog.maxsize(700, 800)
             
             # Make dialog modal
             dialog.transient(self.main_app.root if hasattr(self.main_app, 'root') else None)
@@ -1072,59 +1074,88 @@ class ServicesModule:
             
             # Center the dialog
             dialog.update_idletasks()
-            x = (dialog.winfo_screenwidth() // 2) - (500 // 2)
-            y = (dialog.winfo_screenheight() // 2) - (550 // 2)
-            dialog.geometry(f"500x550+{x}+{y}")
+            x = (dialog.winfo_screenwidth() // 2) - (520 // 2)
+            y = (dialog.winfo_screenheight() // 2) - (650 // 2)
+            dialog.geometry(f"520x650+{x}+{y}")
             
-            # Main container with padding
-            main_container = tk.Frame(dialog, bg='#f8fafc', padx=25, pady=25)
-            main_container.pack(fill='both', expand=True)
+            # Main container with fixed padding
+            main_container = tk.Frame(dialog, bg='#f8fafc')
+            main_container.pack(fill='both', expand=True, padx=5, pady=5)
+            
+            # Create canvas for scrolling with fixed width
+            canvas = tk.Canvas(main_container, bg='#f8fafc', highlightthickness=0, width=500)
+            scrollbar = ttk.Scrollbar(main_container, orient="vertical", command=canvas.yview)
+            scrollable_frame = tk.Frame(canvas, bg='#f8fafc')
+            
+            def configure_canvas(event):
+                canvas.configure(scrollregion=canvas.bbox("all"))
+                # Ensure the scrollable_frame fills the canvas width properly
+                canvas_width = event.width
+                canvas.itemconfig(canvas_window, width=canvas_width)
+            
+            canvas.bind('<Configure>', configure_canvas)
+            
+            # Create window in canvas with proper width control
+            canvas_window = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+            canvas.configure(yscrollcommand=scrollbar.set)
+            
+            # Pack canvas and scrollbar
+            canvas.pack(side="left", fill="both", expand=True)
+            scrollbar.pack(side="right", fill="y")
+            
+            # Content frame with controlled width
+            content = tk.Frame(scrollable_frame, bg='#f8fafc', padx=15, pady=15)
+            content.pack(fill='x')
             
             # Title
-            title_label = tk.Label(main_container, text="Update Booking Status", 
-                                 font=('Arial', 18, 'bold'), bg='#f8fafc', fg='#1e293b')
-            title_label.pack(pady=(0, 25))
+            title_label = tk.Label(content, text="Update Booking Status", 
+                                font=('Arial', 18, 'bold'), bg='#f8fafc', fg='#1e293b')
+            title_label.pack(pady=(0, 20))
             
             # Booking info card
-            info_card = tk.Frame(main_container, bg='white', relief='solid', bd=1)
+            info_card = tk.Frame(content, bg='white', relief='solid', bd=1)
             info_card.pack(fill='x', pady=(0, 20))
             
-            info_header = tk.Frame(info_card, bg='#3b82f6', height=40)
+            info_header = tk.Frame(info_card, bg='#3b82f6', height=35)
             info_header.pack(fill='x')
             info_header.pack_propagate(False)
             
             tk.Label(info_header, text="📋 Booking Information", 
-                    font=('Arial', 12, 'bold'), bg='#3b82f6', fg='white').pack(pady=10)
+                    font=('Arial', 12, 'bold'), bg='#3b82f6', fg='white').pack(pady=8)
             
             info_content = tk.Frame(info_card, bg='white', padx=20, pady=15)
             info_content.pack(fill='x')
             
             # Booking details with better formatting
-            tk.Label(info_content, text=f"Booking ID:", font=('Arial', 10, 'bold'), 
-                    bg='white', fg='#374151').grid(row=0, column=0, sticky='w', pady=3)
-            tk.Label(info_content, text=booking_id, font=('Arial', 10), 
-                    bg='white', fg='#1f2937').grid(row=0, column=1, sticky='w', padx=(10, 0), pady=3)
+            booking_info = [
+                ("Booking ID:", booking_id),
+                ("Customer:", customer_name),
+                ("Service:", service_name)
+            ]
             
-            tk.Label(info_content, text=f"Customer:", font=('Arial', 10, 'bold'), 
-                    bg='white', fg='#374151').grid(row=1, column=0, sticky='w', pady=3)
-            tk.Label(info_content, text=customer_name, font=('Arial', 10), 
-                    bg='white', fg='#1f2937').grid(row=1, column=1, sticky='w', padx=(10, 0), pady=3)
+            for i, (label, value) in enumerate(booking_info):
+                label_widget = tk.Label(info_content, text=label, font=('Arial', 10, 'bold'), 
+                        bg='white', fg='#374151', anchor='w')
+                label_widget.grid(row=i, column=0, sticky='w', pady=4, padx=(0, 15))
+                
+                value_widget = tk.Label(info_content, text=value, font=('Arial', 10), 
+                        bg='white', fg='#1f2937', anchor='w', wraplength=280)
+                value_widget.grid(row=i, column=1, sticky='w', pady=4)
             
-            tk.Label(info_content, text=f"Service:", font=('Arial', 10, 'bold'), 
-                    bg='white', fg='#374151').grid(row=2, column=0, sticky='w', pady=3)
-            tk.Label(info_content, text=service_name, font=('Arial', 10), 
-                    bg='white', fg='#1f2937').grid(row=2, column=1, sticky='w', padx=(10, 0), pady=3)
+            # Configure grid weights
+            info_content.columnconfigure(0, weight=0, minsize=120)
+            info_content.columnconfigure(1, weight=1)
             
             # Status updates card
-            status_card = tk.Frame(main_container, bg='white', relief='solid', bd=1)
+            status_card = tk.Frame(content, bg='white', relief='solid', bd=1)
             status_card.pack(fill='x', pady=(0, 20))
             
-            status_header = tk.Frame(status_card, bg='#10b981', height=40)
+            status_header = tk.Frame(status_card, bg='#10b981', height=35)
             status_header.pack(fill='x')
             status_header.pack_propagate(False)
             
             tk.Label(status_header, text="🔄 Status Updates", 
-                    font=('Arial', 12, 'bold'), bg='#10b981', fg='white').pack(pady=10)
+                    font=('Arial', 12, 'bold'), bg='#10b981', fg='white').pack(pady=8)
             
             status_content = tk.Frame(status_card, bg='white', padx=20, pady=20)
             status_content.pack(fill='x')
@@ -1158,8 +1189,8 @@ class ServicesModule:
                     font=('Arial', 10, 'bold'), bg='white', fg='#374151').pack(anchor='w', pady=(0, 5))
             
             status_combo = ttk.Combobox(status_dropdown_frame, textvariable=status_var, 
-                                       values=['Pending', 'In Progress', 'Completed', 'Cancelled'],
-                                       state='readonly', font=('Arial', 11), width=25)
+                                    values=['Pending', 'In Progress', 'Completed', 'Cancelled'],
+                                    state='readonly', font=('Arial', 11), width=30)
             status_combo.pack(anchor='w')
             
             # Payment Status Section
@@ -1192,12 +1223,12 @@ class ServicesModule:
             
             payment_combo = ttk.Combobox(payment_dropdown_frame, textvariable=payment_var, 
                                         values=['Unpaid', 'Paid', 'Partially Paid', 'Refunded'],
-                                        state='readonly', font=('Arial', 11), width=25)
+                                        state='readonly', font=('Arial', 11), width=30)
             payment_combo.pack(anchor='w')
             
             # Notes section
             notes_frame = tk.Frame(status_content, bg='white')
-            notes_frame.pack(fill='x', pady=(0, 10))
+            notes_frame.pack(fill='x', pady=(0, 15))
             
             tk.Label(notes_frame, text="Update Notes (Optional):", 
                     font=('Arial', 10, 'bold'), bg='white', fg='#374151').pack(anchor='w', pady=(0, 5))
@@ -1205,8 +1236,8 @@ class ServicesModule:
             notes_text_frame = tk.Frame(notes_frame, bg='white')
             notes_text_frame.pack(fill='x')
             
-            notes_text = tk.Text(notes_text_frame, height=4, width=50, wrap=tk.WORD, 
-                                font=('Arial', 10), relief='solid', bd=1, bg='#f9fafb')
+            notes_text = tk.Text(notes_text_frame, height=4, wrap=tk.WORD, 
+                                font=('Arial', 10), relief='solid', bd=1, bg='#f9fafb', width=50)
             notes_scrollbar = tk.Scrollbar(notes_text_frame, orient='vertical', command=notes_text.yview)
             notes_text.configure(yscrollcommand=notes_scrollbar.set)
             
@@ -1214,8 +1245,8 @@ class ServicesModule:
             notes_scrollbar.pack(side='right', fill='y')
             
             # Quick actions card
-            quick_card = tk.Frame(main_container, bg='white', relief='solid', bd=1)
-            quick_card.pack(fill='x', pady=(0, 25))
+            quick_card = tk.Frame(content, bg='white', relief='solid', bd=1)
+            quick_card.pack(fill='x', pady=(0, 20))
             
             quick_header = tk.Frame(quick_card, bg='#8b5cf6', height=35)
             quick_header.pack(fill='x')
@@ -1249,34 +1280,35 @@ class ServicesModule:
                 notes_text.delete('1.0', tk.END)
                 notes_text.insert('1.0', "Payment received.")
             
-            # Quick action buttons with better styling
-            btn_frame = tk.Frame(quick_content, bg='white')
-            btn_frame.pack()
+            # Quick action buttons arranged in a grid for better use of space
+            btn_grid_frame = tk.Frame(quick_content, bg='white')
+            btn_grid_frame.pack()
             
-            # Style buttons with colors
-            complete_btn = tk.Button(btn_frame, text="✅ Complete & Paid", command=set_completed_paid,
-                                   bg='#10b981', fg='white', font=('Arial', 9, 'bold'), 
-                                   relief='flat', padx=15, pady=8, cursor='hand2')
-            complete_btn.pack(side='left', padx=(0, 8))
+            # Row 1 - Main actions
+            complete_btn = tk.Button(btn_grid_frame, text="✅ Complete & Paid", command=set_completed_paid,
+                                bg='#10b981', fg='white', font=('Arial', 9, 'bold'), 
+                                relief='flat', padx=12, pady=6, cursor='hand2', width=18)
+            complete_btn.grid(row=0, column=0, padx=3, pady=3)
             
-            progress_btn = tk.Button(btn_frame, text="🔄 In Progress", command=set_in_progress,
-                                   bg='#3b82f6', fg='white', font=('Arial', 9, 'bold'), 
-                                   relief='flat', padx=15, pady=8, cursor='hand2')
-            progress_btn.pack(side='left', padx=(0, 8))
+            progress_btn = tk.Button(btn_grid_frame, text="🔄 In Progress", command=set_in_progress,
+                                bg='#3b82f6', fg='white', font=('Arial', 9, 'bold'), 
+                                relief='flat', padx=12, pady=6, cursor='hand2', width=18)
+            progress_btn.grid(row=0, column=1, padx=3, pady=3)
             
-            paid_btn = tk.Button(btn_frame, text="💰 Mark Paid", command=set_paid_only,
-                               bg='#059669', fg='white', font=('Arial', 9, 'bold'), 
-                               relief='flat', padx=15, pady=8, cursor='hand2')
-            paid_btn.pack(side='left', padx=(0, 8))
+            # Row 2 - Payment actions
+            paid_btn = tk.Button(btn_grid_frame, text="💰 Mark Paid", command=set_paid_only,
+                            bg='#059669', fg='white', font=('Arial', 9, 'bold'), 
+                            relief='flat', padx=12, pady=6, cursor='hand2', width=18)
+            paid_btn.grid(row=1, column=0, padx=3, pady=3)
             
-            cancel_btn = tk.Button(btn_frame, text="❌ Cancel & Refund", command=set_cancelled_refund,
-                                 bg='#ef4444', fg='white', font=('Arial', 9, 'bold'), 
-                                 relief='flat', padx=15, pady=8, cursor='hand2')
-            cancel_btn.pack(side='left')
+            cancel_btn = tk.Button(btn_grid_frame, text="❌ Cancel & Refund", command=set_cancelled_refund,
+                                bg='#ef4444', fg='white', font=('Arial', 9, 'bold'), 
+                                relief='flat', padx=12, pady=6, cursor='hand2', width=18)
+            cancel_btn.grid(row=1, column=1, padx=3, pady=3)
             
-            # Main action buttons
-            button_frame = tk.Frame(main_container, bg='#f8fafc')
-            button_frame.pack(fill='x')
+            # Fixed action buttons at bottom
+            button_container = tk.Frame(dialog, bg='#f8fafc')
+            button_container.pack(fill='x', side='bottom', padx=15, pady=15)
             
             def update_status():
                 try:
@@ -1359,15 +1391,29 @@ class ServicesModule:
                 dialog.destroy()
             
             # Styled action buttons
-            cancel_action_btn = tk.Button(button_frame, text="Cancel", command=cancel_update,
-                                         bg='#6b7280', fg='white', font=('Arial', 11, 'bold'), 
-                                         relief='flat', padx=25, pady=10, cursor='hand2')
+            cancel_action_btn = tk.Button(button_container, text="Cancel", command=cancel_update,
+                                        bg='#6b7280', fg='white', font=('Arial', 11, 'bold'), 
+                                        relief='flat', padx=25, pady=10, cursor='hand2')
             cancel_action_btn.pack(side='right', padx=(10, 0))
             
-            update_action_btn = tk.Button(button_frame, text="Update Booking", command=update_status,
-                                         bg='#1e293b', fg='white', font=('Arial', 11, 'bold'), 
-                                         relief='flat', padx=25, pady=10, cursor='hand2')
+            update_action_btn = tk.Button(button_container, text="Update Booking", command=update_status,
+                                        bg='#1e293b', fg='white', font=('Arial', 11, 'bold'), 
+                                        relief='flat', padx=25, pady=10, cursor='hand2')
             update_action_btn.pack(side='right')
+            
+            # Enable mouse wheel scrolling
+            def _on_mousewheel(event):
+                canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            
+            def bind_mousewheel(event):
+                canvas.bind_all("<MouseWheel>", _on_mousewheel)
+            
+            def unbind_mousewheel(event):
+                canvas.unbind_all("<MouseWheel>")
+            
+            # Bind mouse wheel events
+            canvas.bind('<Enter>', bind_mousewheel)
+            canvas.bind('<Leave>', unbind_mousewheel)
             
             # Bind keyboard shortcuts
             dialog.bind('<Return>', lambda e: update_status())
@@ -1376,49 +1422,359 @@ class ServicesModule:
             # Focus on status combo
             status_combo.focus_set()
             
+            # Update scroll region after everything is packed
+            dialog.update_idletasks()
+            canvas.configure(scrollregion=canvas.bbox("all"))
+            
         except Exception as e:
             print(f"Error creating status update dialog: {e}")
             messagebox.showerror("Error", f"Failed to open status update dialog: {str(e)}")
     
     def view_booking_details(self):
-        """View detailed information about selected booking"""
+        """View detailed information about selected booking - FIXED VERSION"""
         selection = self.history_tree.selection()
         if not selection:
             messagebox.showwarning("Warning", "Please select a booking to view details.")
             return
         
         item = self.history_tree.item(selection[0])
-        booking_id = item['values'][1]
+        booking_id = item['values'][1]  # Get booking_id from the tree
         
         try:
+            # Fixed SQL query with correct column order
             self.main_app.cursor.execute('''
-                SELECT * FROM service_bookings WHERE booking_id = ?
+                SELECT id, booking_id, service_id, service_name, customer_name, customer_contact,
+                    bike_details, booking_date, scheduled_date, scheduled_time, status, 
+                    notes, payment_status, price, completed_date
+                FROM service_bookings 
+                WHERE booking_id = ?
             ''', (booking_id,))
+            
             booking = self.main_app.cursor.fetchone()
             
             if booking:
-                details = f"""
-Booking Details:
-
-Booking ID: {booking[1]}
-Service: {booking[3]}
-Customer: {booking[4]}
-Contact: {booking[5] or 'N/A'}
-Bike Details: {booking[6] or 'N/A'}
-Booking Date: {booking[7]}
-Scheduled: {booking[8]} at {booking[9]}
-Status: {booking[10]}
-Payment: {booking[12]}
-Price: ₱{booking[13]:.2f}
-
-Notes: {booking[11] or 'None'}
-                """
-                messagebox.showinfo("Booking Details", details)
+                # Format the booking date properly
+                booking_date = booking[7]  # booking_date
+                if isinstance(booking_date, str):
+                    try:
+                        # Try to parse and format the date
+                        if ' ' in booking_date:
+                            date_part = booking_date.split()[0]
+                        else:
+                            date_part = booking_date
+                        date_obj = datetime.strptime(date_part, '%Y-%m-%d')
+                        formatted_booking_date = date_obj.strftime('%B %d, %Y')
+                    except:
+                        formatted_booking_date = str(booking_date)
+                else:
+                    formatted_booking_date = str(booking_date)
+                
+                # Format completed date if available
+                completed_date = booking[14]  # completed_date
+                if completed_date:
+                    try:
+                        if isinstance(completed_date, str):
+                            completed_obj = datetime.strptime(completed_date.split()[0], '%Y-%m-%d')
+                            formatted_completed = completed_obj.strftime('%B %d, %Y')
+                        else:
+                            formatted_completed = str(completed_date)
+                    except:
+                        formatted_completed = str(completed_date)
+                else:
+                    formatted_completed = 'Not completed'
+                
+                # Format scheduled date and time
+                scheduled_date = booking[8] if booking[8] else 'Not scheduled'
+                scheduled_time = booking[9] if booking[9] else 'Not specified'
+                if scheduled_date != 'Not scheduled':
+                    try:
+                        sched_obj = datetime.strptime(scheduled_date, '%Y-%m-%d')
+                        scheduled_date = sched_obj.strftime('%B %d, %Y')
+                    except:
+                        pass  # Keep original format if parsing fails
+                
+                # Create detailed information dialog
+                detail_dialog = tk.Toplevel()
+                detail_dialog.title(f"Booking Details - {booking_id}")
+                detail_dialog.geometry("520x650")
+                detail_dialog.configure(bg='#f8fafc')
+                detail_dialog.resizable(True, True)
+                detail_dialog.minsize(480, 600)
+                detail_dialog.maxsize(700, 800)
+                
+                # Make dialog modal
+                detail_dialog.transient(self.main_app.root if hasattr(self.main_app, 'root') else None)
+                detail_dialog.grab_set()
+                
+                # Center the dialog
+                detail_dialog.update_idletasks()
+                x = (detail_dialog.winfo_screenwidth() // 2) - (520 // 2)
+                y = (detail_dialog.winfo_screenheight() // 2) - (650 // 2)
+                detail_dialog.geometry(f"520x650+{x}+{y}")
+                
+                # Main container with fixed padding
+                main_container = tk.Frame(detail_dialog, bg='#f8fafc')
+                main_container.pack(fill='both', expand=True, padx=5, pady=5)
+                
+                # Create canvas for scrolling with fixed width
+                canvas = tk.Canvas(main_container, bg='#f8fafc', highlightthickness=0, width=500)
+                scrollbar = ttk.Scrollbar(main_container, orient="vertical", command=canvas.yview)
+                scrollable_frame = tk.Frame(canvas, bg='#f8fafc')
+                
+                def configure_canvas(event):
+                    canvas.configure(scrollregion=canvas.bbox("all"))
+                    # Ensure the scrollable_frame fills the canvas width properly
+                    canvas_width = event.width
+                    canvas.itemconfig(canvas_window, width=canvas_width)
+                
+                canvas.bind('<Configure>', configure_canvas)
+                
+                # Create window in canvas with proper width control
+                canvas_window = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+                canvas.configure(yscrollcommand=scrollbar.set)
+                
+                # Pack canvas and scrollbar
+                canvas.pack(side="left", fill="both", expand=True)
+                scrollbar.pack(side="right", fill="y")
+                
+                # Content frame with controlled width
+                content = tk.Frame(scrollable_frame, bg='#f8fafc', padx=15, pady=15)
+                content.pack(fill='x')
+                
+                # Title
+                title_label = tk.Label(content, text=f"Booking Details", 
+                                    font=('Arial', 18, 'bold'), bg='#f8fafc', fg='#1e293b')
+                title_label.pack(pady=(0, 20))
+                
+                # Booking ID card
+                id_card = tk.Frame(content, bg='white', relief='solid', bd=1)
+                id_card.pack(fill='x', pady=(0, 15))
+                
+                id_header = tk.Frame(id_card, bg='#3b82f6', height=35)
+                id_header.pack(fill='x')
+                id_header.pack_propagate(False)
+                
+                tk.Label(id_header, text=f"📋 {booking[1]}", font=('Arial', 12, 'bold'), 
+                        bg='#3b82f6', fg='white').pack(pady=8)
+                
+                # Customer Information
+                customer_card = tk.Frame(content, bg='white', relief='solid', bd=1)
+                customer_card.pack(fill='x', pady=(0, 15))
+                
+                customer_header = tk.Frame(customer_card, bg='#10b981', height=35)
+                customer_header.pack(fill='x')
+                customer_header.pack_propagate(False)
+                
+                tk.Label(customer_header, text="👤 Customer Information", 
+                        font=('Arial', 12, 'bold'), bg='#10b981', fg='white').pack(pady=8)
+                
+                customer_content = tk.Frame(customer_card, bg='white', padx=20, pady=15)
+                customer_content.pack(fill='x')
+                
+                # Customer details
+                details_grid = [
+                    ("Customer Name:", booking[4]),  # customer_name
+                    ("Contact Number:", booking[5] or 'Not provided'),  # customer_contact
+                    ("Bike Details:", booking[6] or 'Not specified'),  # bike_details
+                ]
+                
+                for i, (label, value) in enumerate(details_grid):
+                    tk.Label(customer_content, text=label, font=('Arial', 10, 'bold'), 
+                            bg='white', fg='#374151').grid(row=i, column=0, sticky='w', pady=5, padx=(0, 10))
+                    tk.Label(customer_content, text=str(value), font=('Arial', 10), 
+                            bg='white', fg='#1f2937', wraplength=300).grid(row=i, column=1, sticky='w', pady=5)
+                
+                # Service Information
+                service_card = tk.Frame(content, bg='white', relief='solid', bd=1)
+                service_card.pack(fill='x', pady=(0, 15))
+                
+                service_header = tk.Frame(service_card, bg='#8b5cf6', height=35)
+                service_header.pack(fill='x')
+                service_header.pack_propagate(False)
+                
+                tk.Label(service_header, text="🔧 Service Information", 
+                        font=('Arial', 12, 'bold'), bg='#8b5cf6', fg='white').pack(pady=8)
+                
+                service_content = tk.Frame(service_card, bg='white', padx=20, pady=15)
+                service_content.pack(fill='x')
+                
+                service_details = [
+                    ("Service ID:", booking[2]),  # service_id
+                    ("Service Name:", booking[3]),  # service_name
+                    ("Price:", f"₱{booking[13]:.2f}"),  # price
+                ]
+                
+                for i, (label, value) in enumerate(service_details):
+                    label_widget = tk.Label(service_content, text=label, font=('Arial', 10, 'bold'), 
+                            bg='white', fg='#374151', anchor='w')
+                    label_widget.grid(row=i, column=0, sticky='w', pady=4, padx=(0, 15))
+                    
+                    value_widget = tk.Label(service_content, text=str(value), font=('Arial', 10), 
+                            bg='white', fg='#1f2937', anchor='w')
+                    value_widget.grid(row=i, column=1, sticky='w', pady=4)
+                
+                # Configure grid weights
+                service_content.columnconfigure(0, weight=0, minsize=130)
+                service_content.columnconfigure(1, weight=1)
+                
+                # Scheduling Information
+                schedule_card = tk.Frame(content, bg='white', relief='solid', bd=1)
+                schedule_card.pack(fill='x', pady=(0, 15))
+                
+                schedule_header = tk.Frame(schedule_card, bg='#f59e0b', height=35)
+                schedule_header.pack(fill='x')
+                schedule_header.pack_propagate(False)
+                
+                tk.Label(schedule_header, text="📅 Scheduling Information", 
+                        font=('Arial', 12, 'bold'), bg='#f59e0b', fg='white').pack(pady=8)
+                
+                schedule_content = tk.Frame(schedule_card, bg='white', padx=20, pady=15)
+                schedule_content.pack(fill='x')
+                
+                schedule_info = [
+                    ("Booking Date:", formatted_booking_date),
+                    ("Scheduled Date:", scheduled_date),
+                    ("Scheduled Time:", scheduled_time),
+                    ("Completed Date:", formatted_completed),
+                ]
+                
+                for i, (label, value) in enumerate(schedule_info):
+                    label_widget = tk.Label(schedule_content, text=label, font=('Arial', 10, 'bold'), 
+                            bg='white', fg='#374151', anchor='w')
+                    label_widget.grid(row=i, column=0, sticky='w', pady=4, padx=(0, 15))
+                    
+                    value_widget = tk.Label(schedule_content, text=str(value), font=('Arial', 10), 
+                            bg='white', fg='#1f2937', anchor='w')
+                    value_widget.grid(row=i, column=1, sticky='w', pady=4)
+                
+                # Configure grid weights
+                schedule_content.columnconfigure(0, weight=0, minsize=130)
+                schedule_content.columnconfigure(1, weight=1)
+                
+                # Status Information
+                status_card = tk.Frame(content, bg='white', relief='solid', bd=1)
+                status_card.pack(fill='x', pady=(0, 15))
+                
+                status_header = tk.Frame(status_card, bg='#ef4444', height=35)
+                status_header.pack(fill='x')
+                status_header.pack_propagate(False)
+                
+                tk.Label(status_header, text="📊 Status Information", 
+                        font=('Arial', 12, 'bold'), bg='#ef4444', fg='white').pack(pady=8)
+                
+                status_content = tk.Frame(status_card, bg='white', padx=20, pady=15)
+                status_content.pack(fill='x')
+                
+                # Status with colored indicators
+                status_frame = tk.Frame(status_content, bg='white')
+                status_frame.pack(fill='x', pady=5)
+                
+                tk.Label(status_frame, text="Service Status:", font=('Arial', 10, 'bold'), 
+                        bg='white', fg='#374151').pack(side='left')
+                
+                # Status color coding
+                status_colors = {
+                    'Pending': '#f59e0b',
+                    'In Progress': '#3b82f6', 
+                    'Completed': '#10b981',
+                    'Cancelled': '#ef4444'
+                }
+                status_color = status_colors.get(booking[10], '#6b7280')  # status
+                
+                tk.Label(status_frame, text="●", font=('Arial', 14), 
+                        fg=status_color, bg='white').pack(side='left', padx=(10, 5))
+                tk.Label(status_frame, text=booking[10], font=('Arial', 10, 'bold'), 
+                        fg=status_color, bg='white').pack(side='left')
+                
+                # Payment status
+                payment_frame = tk.Frame(status_content, bg='white')
+                payment_frame.pack(fill='x', pady=5)
+                
+                tk.Label(payment_frame, text="Payment Status:", font=('Arial', 10, 'bold'), 
+                        bg='white', fg='#374151').pack(side='left')
+                
+                payment_colors = {
+                    'Unpaid': '#ef4444',
+                    'Paid': '#10b981', 
+                    'Partially Paid': '#f59e0b',
+                    'Refunded': '#6b7280'
+                }
+                payment_color = payment_colors.get(booking[12], '#6b7280')  # payment_status
+                
+                tk.Label(payment_frame, text="●", font=('Arial', 14), 
+                        fg=payment_color, bg='white').pack(side='left', padx=(10, 5))
+                tk.Label(payment_frame, text=booking[12], font=('Arial', 10, 'bold'), 
+                        fg=payment_color, bg='white').pack(side='left')
+                
+                # Notes section (if available)
+                if booking[11]:  # notes
+                    notes_card = tk.Frame(content, bg='white', relief='solid', bd=1)
+                    notes_card.pack(fill='x', pady=(0, 15))
+                    
+                    notes_header = tk.Frame(notes_card, bg='#6b7280', height=35)
+                    notes_header.pack(fill='x')
+                    notes_header.pack_propagate(False)
+                    
+                    tk.Label(notes_header, text="📝 Notes & Updates", 
+                            font=('Arial', 12, 'bold'), bg='#6b7280', fg='white').pack(pady=8)
+                    
+                    notes_content = tk.Frame(notes_card, bg='white', padx=20, pady=15)
+                    notes_content.pack(fill='x')
+                    
+                    # Notes text with proper sizing
+                    notes_text_frame = tk.Frame(notes_content, bg='white')
+                    notes_text_frame.pack(fill='x', pady=(0, 5))
+                    
+                    notes_text = tk.Text(notes_text_frame, height=5, wrap=tk.WORD, 
+                                    font=('Arial', 9), relief='solid', bd=1, bg='#f9fafb', 
+                                    state='normal', width=50)
+                    notes_text_scroll = tk.Scrollbar(notes_text_frame, orient='vertical', command=notes_text.yview)
+                    notes_text.configure(yscrollcommand=notes_text_scroll.set)
+                    
+                    notes_text.insert('1.0', booking[11])
+                    notes_text.configure(state='disabled')  # Make read-only
+                    
+                    notes_text.pack(side='left', fill='both', expand=True)
+                    notes_text_scroll.pack(side='right', fill='y')
+                
+                # Close button
+                button_frame = tk.Frame(content, bg='#f8fafc')
+                button_frame.pack(fill='x', pady=20)
+                
+                close_btn = tk.Button(button_frame, text="Close", 
+                                    command=detail_dialog.destroy,
+                                    bg='#6b7280', fg='white', font=('Arial', 11, 'bold'), 
+                                    relief='flat', padx=30, pady=10, cursor='hand2')
+                close_btn.pack()
+                
+                # Enable mouse wheel scrolling
+                def _on_mousewheel(event):
+                    canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+                
+                def bind_mousewheel(event):
+                    canvas.bind_all("<MouseWheel>", _on_mousewheel)
+                
+                def unbind_mousewheel(event):
+                    canvas.unbind_all("<MouseWheel>")
+                
+                canvas.bind('<Enter>', bind_mousewheel)
+                canvas.bind('<Leave>', unbind_mousewheel)
+                
+                # Update scroll region
+                detail_dialog.update_idletasks()
+                canvas.configure(scrollregion=canvas.bbox("all"))
+                
+                # Bind escape key to close
+                detail_dialog.bind('<Escape>', lambda e: detail_dialog.destroy())
+                
             else:
                 messagebox.showerror("Error", "Booking not found!")
                 
         except Exception as e:
+            print(f"Error in view_booking_details: {e}")
             messagebox.showerror("Error", f"Failed to load booking details: {str(e)}")
+            import traceback
+            traceback.print_exc()
     
     def refresh_services(self):
         """Refresh services list"""
