@@ -8,6 +8,10 @@ class StatisticsModule:
         self.parent = parent
         self.main_app = main_app
         self.frame = None
+        self.left_chart_frame = None
+        self.right_chart_frame = None
+        self.top_buyers_frame = None
+        self.product_performance_frame = None
         
     def create_interface(self):
         """Create the statistics interface with charts and top buyers"""
@@ -44,28 +48,28 @@ class StatisticsModule:
         charts_row.pack(fill='x', pady=(0, 20))
         
         # Left chart - Monthly Sales Trend
-        left_chart_frame = ttk.Frame(charts_row, style='Card.TFrame')
-        left_chart_frame.pack(side='left', fill='both', expand=True, padx=(0, 10))
-        self.create_monthly_sales_chart(left_chart_frame)
+        self.left_chart_frame = ttk.Frame(charts_row, style='Card.TFrame')
+        self.left_chart_frame.pack(side='left', fill='both', expand=True, padx=(0, 10))
+        self.create_monthly_sales_chart(self.left_chart_frame)
         
         # Right chart - Sales by Category
-        right_chart_frame = ttk.Frame(charts_row, style='Card.TFrame')
-        right_chart_frame.pack(side='right', fill='both', expand=True, padx=(10, 0))
-        self.create_category_sales_chart(right_chart_frame)
+        self.right_chart_frame = ttk.Frame(charts_row, style='Card.TFrame')
+        self.right_chart_frame.pack(side='right', fill='both', expand=True, padx=(10, 0))
+        self.create_category_sales_chart(self.right_chart_frame)
         
         # Bottom row - Tables
         tables_row = ttk.Frame(stats_content, style='Content.TFrame')
         tables_row.pack(fill='both', expand=True)
         
         # Left table - Top Buyers
-        top_buyers_frame = ttk.Frame(tables_row, style='Card.TFrame')
-        top_buyers_frame.pack(side='left', fill='both', expand=True, padx=(0, 10))
-        self.create_top_buyers_table(top_buyers_frame)
+        self.top_buyers_frame = ttk.Frame(tables_row, style='Card.TFrame')
+        self.top_buyers_frame.pack(side='left', fill='both', expand=True, padx=(0, 10))
+        self.create_top_buyers_table(self.top_buyers_frame)
         
         # Right table - Product Performance
-        product_performance_frame = ttk.Frame(tables_row, style='Card.TFrame')
-        product_performance_frame.pack(side='right', fill='both', expand=True, padx=(10, 0))
-        self.create_product_performance_table(product_performance_frame)
+        self.product_performance_frame = ttk.Frame(tables_row, style='Card.TFrame')
+        self.product_performance_frame.pack(side='right', fill='both', expand=True, padx=(10, 0))
+        self.create_product_performance_table(self.product_performance_frame)
         
         return self.frame
 
@@ -261,7 +265,30 @@ class StatisticsModule:
 
     def update_statistics(self, event=None):
         """Update statistics based on filter changes"""
-        return self.refresh_statistics()
+        try:
+            # Clear and update each component individually
+            if self.left_chart_frame:
+                for widget in self.left_chart_frame.winfo_children():
+                    widget.destroy()
+                self.create_monthly_sales_chart(self.left_chart_frame)
+            
+            if self.right_chart_frame:
+                for widget in self.right_chart_frame.winfo_children():
+                    widget.destroy()
+                self.create_category_sales_chart(self.right_chart_frame)
+            
+            if self.top_buyers_frame:
+                for widget in self.top_buyers_frame.winfo_children():
+                    widget.destroy()
+                self.create_top_buyers_table(self.top_buyers_frame)
+            
+            if self.product_performance_frame:
+                for widget in self.product_performance_frame.winfo_children():
+                    widget.destroy()
+                self.create_product_performance_table(self.product_performance_frame)
+                
+        except Exception as e:
+            print(f"Error updating statistics: {e}")
 
     def refresh(self):
         """Refresh the statistics interface"""

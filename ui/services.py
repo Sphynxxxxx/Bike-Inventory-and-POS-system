@@ -266,101 +266,6 @@ class ServicesModule:
         except sqlite3.Error as e:
             print(f"Error initializing services database: {e}")
     
-    def insert_default_services(self):
-        """Insert default bike shop services"""
-        default_services = [
-            {
-                'name': 'Bike and Motor Wash',
-                'description': 'Complete cleaning and washing service for bikes and motorcycles including degreasing and protective coating',
-                'price': 150.00,
-                'duration': '30-45 minutes',
-                'category': 'Cleaning',
-                'service_id': 'SRV001'
-            },
-            {
-                'name': 'Whole Bike Assemble',
-                'description': 'Complete bike assembly from parts including frame setup, component installation, and final adjustments',
-                'price': 1500.00,
-                'duration': '3-4 hours',
-                'category': 'Assembly',
-                'service_id': 'SRV002'
-            },
-            {
-                'name': 'Coil / Airfork Repair',
-                'description': 'Professional fork repair and maintenance including seal replacement, oil change, and pressure adjustment',
-                'price': 800.00,
-                'duration': '1-2 hours',
-                'category': 'Suspension',
-                'service_id': 'SRV003'
-            },
-            {
-                'name': 'Headset Replacement or Repack',
-                'description': 'Headset bearing replacement or repacking service for smooth steering operation',
-                'price': 400.00,
-                'duration': '45-60 minutes',
-                'category': 'Drivetrain',
-                'service_id': 'SRV004'
-            },
-            {
-                'name': 'Hub Replacement',
-                'description': 'Professional wheel hub replacement service including bearing replacement and wheel rebuild',
-                'price': 600.00,
-                'duration': '1-1.5 hours',
-                'category': 'Wheels',
-                'service_id': 'SRV005'
-            },
-            {
-                'name': 'Bottom Bracket Replacement or Repack',
-                'description': 'Bottom bracket service including bearing replacement, cleaning, and proper installation',
-                'price': 500.00,
-                'duration': '45-60 minutes',
-                'category': 'Drivetrain',
-                'service_id': 'SRV006'
-            },
-            {
-                'name': 'Wheel Tubeless Conversion',
-                'description': 'Convert standard wheels to tubeless setup including sealant installation and valve replacement',
-                'price': 350.00,
-                'duration': '30-45 minutes',
-                'category': 'Wheels',
-                'service_id': 'SRV007'
-            },
-            {
-                'name': 'Hydraulic Bleeding',
-                'description': 'Professional brake bleeding service for optimal brake performance and safety',
-                'price': 300.00,
-                'duration': '30-45 minutes',
-                'category': 'Brakes',
-                'service_id': 'SRV008'
-            },
-            {
-                'name': 'Drivetrain Tuning',
-                'description': 'Complete drivetrain adjustment including derailleur tuning, cable tension, and shifting optimization',
-                'price': 250.00,
-                'duration': '30-45 minutes',
-                'category': 'Drivetrain',
-                'service_id': 'SRV009'
-            },
-            {
-                'name': 'Spoke Truing',
-                'description': 'Professional wheel truing service to eliminate wobbles and ensure perfect wheel alignment',
-                'price': 200.00,
-                'duration': '20-30 minutes',
-                'category': 'Wheels',
-                'service_id': 'SRV010'
-            }
-        ]
-        
-        for service in default_services:
-            try:
-                self.main_app.cursor.execute('''
-                    INSERT INTO services (name, description, price, duration, category, service_id)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ''', (service['name'], service['description'], service['price'], 
-                      service['duration'], service['category'], service['service_id']))
-            except sqlite3.IntegrityError:
-                # Service already exists, skip
-                pass
         
     def create_interface(self):
         """Create the services interface"""
@@ -487,6 +392,8 @@ class ServicesModule:
         status_filter.bind('<<ComboboxSelected>>', self.filter_service_history)
         
         # Action buttons
+        ttk.Button(history_controls, text="Delete Record", command=self.delete_service_history,
+                  style='Danger.TButton').pack(side='right', padx=(10, 0))
         ttk.Button(history_controls, text="Update Status", command=self.update_booking_status,
                   style='Secondary.TButton').pack(side='right', padx=(10, 0))
         ttk.Button(history_controls, text="View Details", command=self.view_booking_details,
@@ -1780,6 +1687,43 @@ class ServicesModule:
         """Refresh services list"""
         self.load_services()
     
+    def delete_service_history(self):
+        """Delete selected service history record"""
+        selection = self.history_tree.selection()
+        if not selection:
+            messagebox.showwarning("Warning", "Please select a record to delete.")
+            return
+        
+        try:
+            item = self.history_tree.item(selection[0])
+            booking_id = item['values'][1]  # Get booking_id from the tree
+            customer_name = item['values'][3]  # Get customer name
+            service_name = item['values'][4]  # Get service name
+            
+            # Show confirmation dialog with details
+            if messagebox.askyesno("Confirm Delete", 
+                                f"Are you sure you want to delete this service record?\n\n" + 
+                                f"Booking ID: {booking_id}\n" +
+                                f"Customer: {customer_name}\n" +
+                                f"Service: {service_name}"):
+                
+                # Delete the record
+                self.main_app.cursor.execute('''
+                    DELETE FROM service_bookings 
+                    WHERE booking_id = ?
+                ''', (booking_id,))
+                
+                self.main_app.conn.commit()
+                messagebox.showinfo("Success", "Service record has been deleted successfully!")
+                
+                # Refresh the history view
+                self.load_service_history()
+                
+        except Exception as e:
+            print(f"Error deleting service record: {e}")
+            messagebox.showerror("Error", f"Failed to delete service record: {str(e)}")
+            self.main_app.conn.rollback()
+
     def refresh_service_history(self):
         """Refresh service history"""
         self.load_service_history()
