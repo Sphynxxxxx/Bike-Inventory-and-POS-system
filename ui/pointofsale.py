@@ -31,9 +31,17 @@ class PointOfSaleModule:
         ttk.Label(customer_content, text="Customer Name:", style='FieldLabel.TLabel').pack(side='left', padx=(0, 10))
         self.customer_var = tk.StringVar()
         self.customer_entry = ttk.Entry(customer_content, textvariable=self.customer_var, 
-                                       style='Modern.TEntry', width=30)
+                                       style='Modern.TEntry', width=20)
         self.customer_entry.pack(side='left', padx=(0, 10))
-        self.customer_entry.bind('<Return>', self.focus_product_search)
+        self.customer_entry.bind('<Return>', lambda e: self.address_entry.focus())
+
+        # Customer Address
+        ttk.Label(customer_content, text="Address:", style='FieldLabel.TLabel').pack(side='left', padx=(0, 10))
+        self.address_var = tk.StringVar()
+        self.address_entry = ttk.Entry(customer_content, textvariable=self.address_var, 
+                                      style='Modern.TEntry', width=30)
+        self.address_entry.pack(side='left', padx=(0, 10))
+        self.address_entry.bind('<Return>', self.focus_product_search)
         
         # Main content area
         main_content = ttk.Frame(self.frame, style='Content.TFrame')
@@ -469,8 +477,13 @@ class PointOfSaleModule:
         # Show checkout confirmation
         total = sum(item['quantity'] * item['unit_price'] for item in self.cart_items)
         
+        # Get customer address
+        customer_address = self.address_var.get().strip()
+        address_display = f"Address: {customer_address}\n" if customer_address else ""
+
         if messagebox.askyesno("Confirm Checkout", 
                               f"Customer: {customer_name}\n"
+                              f"{address_display}"
                               f"Items: {len(self.cart_items)}\n"
                               f"Total: ₱{total:,.2f}\n"
                               f"Payment: {self.payment_var.get()}\n\n"
@@ -528,6 +541,8 @@ class PointOfSaleModule:
         
         ttk.Label(info_frame, text=f"Transaction ID: {transaction_id}").pack(anchor='w')
         ttk.Label(info_frame, text=f"Customer: {customer_name}").pack(anchor='w')
+        if self.address_var.get().strip():
+            ttk.Label(info_frame, text=f"Address: {self.address_var.get().strip()}").pack(anchor='w')
         ttk.Label(info_frame, text=f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}").pack(anchor='w')
         ttk.Label(info_frame, text=f"Payment: {self.payment_var.get()}").pack(anchor='w')
         
