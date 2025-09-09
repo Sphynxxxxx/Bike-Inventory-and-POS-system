@@ -488,22 +488,25 @@ class PointOfSaleModule:
             items_detail += f"• {item['quantity']}x {item['product_name']} @ ₱{item['unit_price']:.2f} = ₱{item_total:.2f}\n"
 
         confirmation_message = (f"Customer: {customer_name}\n"
-                               f"{address_display}\n"
-                               f"{items_detail}\n"
-                               f"Total Amount: ₱{total:,.2f}\n"
-                               f"Payment Method: {self.payment_var.get()}\n\n"
-                               f"Process this sale?")
+                            f"{address_display}\n"
+                            f"{items_detail}\n"
+                            f"Total Amount: ₱{total:,.2f}\n"
+                            f"Payment Method: {self.payment_var.get()}\n\n"
+                            f"Process this sale?")
 
         if messagebox.askyesno("Confirm Checkout", confirmation_message):
+            
+            # Make a copy of cart items for receipt before clearing
+            cart_items_copy = self.cart_items.copy()
             
             # Process the sale
             success, result = self.main_app.record_sale(self.cart_items, self.payment_var.get())
             
             if success:
                 messagebox.showinfo("Success", 
-                                   f"Sale completed successfully!\n"
-                                   f"Transaction ID: {result}\n"
-                                   f"Total: ₱{total:,.2f}")
+                                f"Sale completed successfully!\n"
+                                f"Transaction ID: {result}\n"
+                                f"Total: ₱{total:,.2f}")
                 
                 # Clear cart and reset customer
                 self.cart_items.clear()
@@ -513,15 +516,19 @@ class PointOfSaleModule:
                 self.load_products()  # Refresh to show updated stock
                 self.customer_entry.focus()
                 
-                # Print receipt option
+                # Print receipt option - use the copy of cart items
                 if messagebox.askyesno("Print Receipt", "Would you like to print a receipt?"):
-                    self.print_receipt(result, customer_name, customer_address, total)
+                    self.print_receipt(result, customer_name, customer_address, total, cart_items_copy)
                     
             else:
                 messagebox.showerror("Error", f"Failed to process sale:\n{result}")
     
-    def print_receipt(self, transaction_id, customer_name, customer_address, total):
+    def print_receipt(self, transaction_id, customer_name, customer_address, total, cart_items=None):
         """Show receipt in a popup window with detailed product list"""
+
+        if cart_items is None:
+            cart_items = self.cart_items
+
         receipt_window = tk.Toplevel(self.frame)
         receipt_window.title("Receipt")
         receipt_window.geometry("450x650")
@@ -590,7 +597,8 @@ class PointOfSaleModule:
         items_frame.pack(fill='x', pady=(0, 10))
         
         total_items = 0
-        for i, item in enumerate(self.cart_items, 1):
+        # FIX: Use cart_items parameter instead of self.cart_items
+        for i, item in enumerate(cart_items, 1):
             item_total = item['quantity'] * item['unit_price']
             total_items += item['quantity']
             
@@ -599,27 +607,27 @@ class PointOfSaleModule:
             item_name_frame.pack(fill='x', pady=(5 if i > 1 else 0, 0))
             
             ttk.Label(item_name_frame, 
-                     text=f"{i}. {item['product_name']}", 
-                     font=('Arial', 11, 'bold')).pack(anchor='w')
+                    text=f"{i}. {item['product_name']}", 
+                    font=('Arial', 11, 'bold')).pack(anchor='w')
             
             # Category if available
             if 'category' in item and item['category']:
                 ttk.Label(item_name_frame, 
-                         text=f"   Category: {item['category']}", 
-                         font=('Arial', 9), 
-                         foreground='gray').pack(anchor='w')
+                        text=f"   Category: {item['category']}", 
+                        font=('Arial', 9), 
+                        foreground='gray').pack(anchor='w')
             
             # Quantity, price, and total
             item_detail_frame = ttk.Frame(items_frame)
             item_detail_frame.pack(fill='x', pady=(2, 0))
             
             ttk.Label(item_detail_frame, 
-                     text=f"   Qty: {item['quantity']} × ₱{item['unit_price']:,.2f} each", 
-                     font=('Arial', 10)).pack(anchor='w')
+                    text=f"   Qty: {item['quantity']} × ₱{item['unit_price']:,.2f} each", 
+                    font=('Arial', 10)).pack(anchor='w')
             
             ttk.Label(item_detail_frame, 
-                     text=f"   Subtotal: ₱{item_total:,.2f}", 
-                     font=('Arial', 10, 'bold')).pack(anchor='w')
+                    text=f"   Subtotal: ₱{item_total:,.2f}", 
+                    font=('Arial', 10, 'bold')).pack(anchor='w')
         
         # Summary section
         ttk.Label(receipt_frame, text="=" * 50, font=('Courier', 10)).pack(pady=(15, 5))
@@ -627,8 +635,9 @@ class PointOfSaleModule:
         summary_frame = ttk.Frame(receipt_frame)
         summary_frame.pack(fill='x', pady=(0, 15))
         
+        # FIX: Use cart_items parameter instead of self.cart_items
         ttk.Label(summary_frame, text=f"Total Items: {total_items}", font=('Arial', 11)).pack(anchor='w')
-        ttk.Label(summary_frame, text=f"Total Products: {len(self.cart_items)}", font=('Arial', 11)).pack(anchor='w', pady=(2, 0))
+        ttk.Label(summary_frame, text=f"Total Products: {len(cart_items)}", font=('Arial', 11)).pack(anchor='w', pady=(2, 0))
         
         # Total amount (highlighted)
         total_frame = ttk.Frame(receipt_frame)
@@ -636,7 +645,7 @@ class PointOfSaleModule:
         
         ttk.Label(total_frame, text="=" * 50, font=('Courier', 10)).pack()
         ttk.Label(total_frame, text=f"TOTAL AMOUNT: ₱{total:,.2f}", 
-                 font=('Arial', 16, 'bold'), foreground='blue').pack(pady=(5, 5))
+                font=('Arial', 16, 'bold'), foreground='blue').pack(pady=(5, 5))
         ttk.Label(total_frame, text="=" * 50, font=('Courier', 10)).pack()
         
         # Footer
@@ -644,11 +653,11 @@ class PointOfSaleModule:
         footer_frame.pack(fill='x', pady=(20, 0))
         
         ttk.Label(footer_frame, text="Thank you for choosing Bike Shop!", 
-                 font=('Arial', 12, 'bold')).pack(pady=(0, 5))
+                font=('Arial', 12, 'bold')).pack(pady=(0, 5))
         ttk.Label(footer_frame, text="Have a great ride!", 
-                 font=('Arial', 10, 'italic')).pack(pady=(0, 10))
+                font=('Arial', 10, 'italic')).pack(pady=(0, 10))
         ttk.Label(footer_frame, text="For questions or concerns, please contact us.", 
-                 font=('Arial', 9)).pack()
+                font=('Arial', 9)).pack()
         
         # Pack canvas and scrollbar
         canvas.pack(side="left", fill="both", expand=True)
@@ -663,12 +672,12 @@ class PointOfSaleModule:
         btn_frame.pack()
         
         ttk.Button(btn_frame, text="Print Receipt", 
-                  command=lambda: self.actual_print_receipt(receipt_window),
-                  style='Primary.TButton').pack(side='left', padx=(0, 10))
+                command=lambda: self.actual_print_receipt(receipt_window),
+                style='Primary.TButton').pack(side='left', padx=(0, 10))
         
         ttk.Button(btn_frame, text="Close", 
-                  command=receipt_window.destroy,
-                  style='Secondary.TButton').pack(side='left')
+                command=receipt_window.destroy,
+                style='Secondary.TButton').pack(side='left')
         
         # Bind mouse wheel to canvas for scrolling
         def _on_mousewheel(event):
