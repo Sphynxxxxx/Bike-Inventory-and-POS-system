@@ -216,6 +216,29 @@ class ServicesModule:
         self.frame = None
         self.init_services_database()
         
+    def insert_default_services(self):
+        """Insert default services into the database"""
+        default_services = [
+            ('Basic Tune-Up', 'Complete bike inspection, adjustment of brakes, gears, and bearings', 500.00, '1 hour', 'General', 'SRV001'),
+            ('Full Bike Service', 'Comprehensive service including cleaning, lubrication, and full adjustment', 1000.00, '2 hours', 'General', 'SRV002'),
+            ('Wheel Truing', 'Straightening and tensioning of wheel', 300.00, '45 minutes', 'Wheels', 'SRV003'),
+            ('Brake Service', 'Brake pad replacement and adjustment', 250.00, '30 minutes', 'Brakes', 'SRV004'),
+            ('Drivetrain Cleaning', 'Deep cleaning of chain, cassette, and chainrings', 350.00, '1 hour', 'Drivetrain', 'SRV005'),
+            ('Basic Bike Wash', 'External cleaning and basic lubrication', 200.00, '30 minutes', 'Cleaning', 'SRV006'),
+            ('Suspension Service', 'Fork and shock maintenance', 800.00, '2 hours', 'Suspension', 'SRV007'),
+            ('Bike Assembly', 'Complete bike assembly from box', 1500.00, '3 hours', 'Assembly', 'SRV008')
+        ]
+        
+        try:
+            self.main_app.cursor.executemany('''
+                INSERT INTO services (name, description, price, duration, category, service_id)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', default_services)
+            self.main_app.conn.commit()
+            print("Default services inserted successfully")
+        except sqlite3.Error as e:
+            print(f"Error inserting default services: {e}")
+            
     def init_services_database(self):
         """Initialize services-related database tables"""
         try:

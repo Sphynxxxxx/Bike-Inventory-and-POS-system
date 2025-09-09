@@ -69,9 +69,9 @@ class StockHistoryModule:
         table_frame = ttk.Frame(self.frame, style='Content.TFrame')
         table_frame.pack(fill='both', expand=True, padx=30, pady=20)
         
-        # Create treeview for stock history - UPDATED to include Customer Name
+        # Create treeview for stock history - UPDATED to include Customer Name and Address
         columns = ('ID', 'Date', 'Time', 'Transaction ID', 'Product Name', 'Product ID', 
-                  'Category', 'Customer Name', 'Movement Type', 'Quantity', 'Unit Price', 'Total Amount', 'Current Stock')
+                  'Category', 'Customer Name', 'Customer Address', 'Movement Type', 'Quantity', 'Unit Price', 'Total Amount', 'Current Stock')
         self.stock_history_tree = ttk.Treeview(table_frame, columns=columns, show='headings', 
                                               style='Modern.Treeview')
         
@@ -85,6 +85,7 @@ class StockHistoryModule:
             'Product ID': 80,
             'Category': 80,
             'Customer Name': 100,
+            'Customer Address': 150,  
             'Movement Type': 100,
             'Quantity': 70,
             'Unit Price': 80,
@@ -295,7 +296,7 @@ class StockHistoryModule:
             category_filter = self.stock_category_var.get() if hasattr(self, 'stock_category_var') else 'All Categories'
             movement_filter = self.movement_type_var.get() if hasattr(self, 'movement_type_var') else 'All Movements'
             
-            # Base query for sales (stock out) - UPDATED to include customer_name
+            # Base query for sales (stock out) - UPDATED to include customer_name and address
             base_query = '''
                 SELECT 
                     s.id,
@@ -306,6 +307,7 @@ class StockHistoryModule:
                     s.product_id,
                     s.product_category,
                     s.customer_name,
+                    s.customer_address,
                     'Sale (Out)' as movement_type,
                     s.quantity,
                     s.price,
@@ -349,6 +351,7 @@ class StockHistoryModule:
                         p.product_id,
                         p.category as product_category,
                         'System' as customer_name,
+                        'N/A' as customer_address,
                         'Stock Added (In)' as movement_type,
                         p.stock as quantity,
                         p.price,
@@ -381,11 +384,12 @@ class StockHistoryModule:
                 product_id = record[5] if record[5] else 'N/A'
                 category = record[6] if record[6] else 'N/A'
                 customer_name = record[7] if record[7] else 'N/A'
-                movement_type = record[8] if record[8] else 'N/A'
-                quantity = int(record[9]) if record[9] else 0
-                unit_price = float(record[10]) if record[10] else 0.0
-                total_amount = float(record[11]) if record[11] else 0.0
-                current_stock = int(record[12]) if record[12] else 0
+                customer_address = record[8] if record[8] else 'N/A'
+                movement_type = record[9] if record[9] else 'N/A'
+                quantity = int(record[10]) if record[10] else 0
+                unit_price = float(record[11]) if record[11] else 0.0
+                total_amount = float(record[12]) if record[12] else 0.0
+                current_stock = int(record[13]) if record[13] else 0
                 
                 # Insert into treeview (ID is first but hidden)
                 self.stock_history_tree.insert('', 'end', values=(
@@ -397,6 +401,7 @@ class StockHistoryModule:
                     product_id,
                     category,
                     customer_name,  # Customer name column
+                    customer_address,  # Customer address column
                     movement_type,
                     f"{quantity:,}",  # Format quantity with commas
                     f"₱{unit_price:.2f}",

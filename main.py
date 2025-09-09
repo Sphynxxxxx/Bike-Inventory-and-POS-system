@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import messagebox
 import subprocess
 import os
+import sys
 from PIL import Image, ImageTk
 
 # Static credentials
@@ -21,7 +22,10 @@ def login():
 def open_dashboard():
     # Run the dashboard script
     try:
-        subprocess.Popen(["python", "ui/main.py"])
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        dashboard_path = os.path.join(current_dir, "ui", "main.py")
+        python_exe = sys.executable
+        subprocess.Popen([python_exe, dashboard_path])
     except Exception as e:
         messagebox.showerror("Error", f"Could not open dashboard: {e}")
 
@@ -62,7 +66,9 @@ left_frame.pack(side="left", fill="both", expand=False)
 
 try:
     # Load the image
-    logo_image = Image.open("assets/logo/logo.png")  
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    logo_path = os.path.join(current_dir, "assets", "logo", "logo.png")
+    logo_image = Image.open(logo_path)  
     logo_image = logo_image.resize((100, 100))  # Resize the image if needed
     logo_photo = ImageTk.PhotoImage(logo_image)
 

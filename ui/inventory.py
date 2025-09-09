@@ -63,10 +63,48 @@ class InventoryModule:
         
         return self.frame
 
+    def validate_product_data(self, product_data):
+        """Validate product data before adding or updating"""
+        try:
+            # Validate name
+            if not product_data.get('name') or not product_data['name'].strip():
+                raise ValueError("Product name is required!")
+                
+            # Validate product_id
+            if not product_data.get('product_id') or not str(product_data['product_id']).strip():
+                raise ValueError("Product ID is required!")
+                
+            # Validate price
+            try:
+                price = float(product_data['price'])
+                if price < 0:
+                    raise ValueError("Price cannot be negative!")
+            except (TypeError, ValueError):
+                raise ValueError("Invalid price value!")
+                
+            # Validate stock
+            try:
+                stock = int(product_data['stock'])
+                if stock < 0:
+                    raise ValueError("Stock cannot be negative!")
+            except (TypeError, ValueError):
+                raise ValueError("Invalid stock value!")
+                
+            return True
+                
+        except ValueError as e:
+            messagebox.showerror("Validation Error", str(e))
+            return False
+
     def add_product(self):
         try:
             dialog = ProductDialog(self.main_app.root, "Add Product")
             if dialog.result:
+                # Validate the product data first
+                if not self.validate_product_data(dialog.result):
+                    return
+                    
+                print(f"Dialog result: {dialog.result}")  
                 print(f"Dialog result: {dialog.result}")  
                 
                 # Validate required fields
@@ -85,15 +123,18 @@ class InventoryModule:
                     messagebox.showerror("Error", "Product ID already exists! Please use a unique Product ID.")
                     return
                 
-                # Insert the product
+                # Format the product_id to ensure consistency
+                formatted_product_id = str(dialog.result['product_id']).strip()
+                
+                # Insert the product with formatted product_id
                 self.main_app.cursor.execute('''
                     INSERT INTO products (name, price, stock, category, product_id)
                     VALUES (?, ?, ?, ?, ?)
                 ''', (dialog.result['name'], 
-                      dialog.result['price'], 
-                      dialog.result['stock'],
+                      float(dialog.result['price']), 
+                      int(dialog.result['stock']),
                       dialog.result['category'], 
-                      dialog.result['product_id']))
+                      formatted_product_id))
                 
                 # Record initial stock addition
                 if dialog.result['stock'] > 0:
@@ -146,14 +187,17 @@ class InventoryModule:
         dialog = ProductDialog(self.main_app.root, "Edit Product", product)
         if dialog.result:
             try:
-                new_stock = dialog.result['stock']
+                new_stock = int(dialog.result['stock'])
                 stock_difference = new_stock - old_stock
+                
+                # Format the product_id to ensure consistency
+                formatted_product_id = str(dialog.result['product_id']).strip()
                 
                 self.main_app.cursor.execute('''
                     UPDATE products SET name = ?, price = ?, stock = ?, category = ?, product_id = ?
                     WHERE id = ?
-                ''', (dialog.result['name'], dialog.result['price'], dialog.result['stock'],
-                      dialog.result['category'], dialog.result['product_id'], product_id))
+                ''', (dialog.result['name'], float(dialog.result['price']), new_stock,
+                      dialog.result['category'], formatted_product_id, product_id))
                 
                 # Record stock movement if stock changed
                 if stock_difference != 0:

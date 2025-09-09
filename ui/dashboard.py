@@ -216,6 +216,83 @@ class DashboardModule:
         
         tree.pack(fill='both', expand=True)
 
+    def show_all_stock_alerts(self):
+        """Show all low stock products in a new window"""
+        # Create new window
+        alert_window = tk.Toplevel(self.frame)
+        alert_window.title("Stock Alerts")
+        alert_window.geometry("800x600")
+        alert_window.transient(self.frame)
+        
+        # Center the window
+        alert_window.update_idletasks()
+        x = (alert_window.winfo_screenwidth() // 2) - (800 // 2)
+        y = (alert_window.winfo_screenheight() // 2) - (600 // 2)
+        alert_window.geometry(f"800x600+{x}+{y}")
+        
+        # Main frame
+        main_frame = ttk.Frame(alert_window, style='Content.TFrame')
+        main_frame.pack(fill='both', expand=True, padx=20, pady=20)
+        
+        # Header
+        ttk.Label(main_frame, text="All Stock Alerts", style='PageTitle.TLabel').pack(pady=(0, 20))
+        
+        # Table frame
+        table_frame = ttk.Frame(main_frame, style='Card.TFrame')
+        table_frame.pack(fill='both', expand=True)
+        
+        # Create treeview
+        columns = ('SKU', 'Product', 'Category', 'Current Stock', 'Min Stock', 'Status')
+        tree = ttk.Treeview(table_frame, columns=columns, show='headings', style='Modern.Treeview')
+        
+        # Configure columns
+        tree.heading('SKU', text='SKU')
+        tree.heading('Product', text='Product Name')
+        tree.heading('Category', text='Category')
+        tree.heading('Current Stock', text='Current Stock')
+        tree.heading('Min Stock', text='Min Stock')
+        tree.heading('Status', text='Status')
+        
+        tree.column('SKU', width=100)
+        tree.column('Product', width=200)
+        tree.column('Category', width=150)
+        tree.column('Current Stock', width=100)
+        tree.column('Min Stock', width=100)
+        tree.column('Status', width=100)
+        
+        # Add scrollbar
+        scrollbar = ttk.Scrollbar(table_frame, orient='vertical', command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        
+        # Pack tree and scrollbar
+        tree.pack(side='left', fill='both', expand=True)
+        scrollbar.pack(side='right', fill='y')
+        
+        # Get all low stock products
+        low_stock_products = self.main_app.get_low_stock_products()
+        
+        # Insert data
+        for product in low_stock_products:
+            status = "OUT OF STOCK" if product[3] == 0 else "LOW STOCK"
+            status_color = 'red' if product[3] == 0 else 'orange'
+            
+            tree.insert('', 'end', values=(
+                product[4],  # SKU/product_id
+                product[1],  # name
+                product[2] if len(product) > 4 else "General",  # category
+                product[3],  # current stock
+                5,  # minimum stock threshold (you may want to make this configurable)
+                status
+            ), tags=(status_color,))
+        
+        # Configure tag colors
+        tree.tag_configure('red', foreground='#ef4444')
+        tree.tag_configure('orange', foreground='#f97316')
+        
+        # Add close button
+        ttk.Button(main_frame, text="Close", command=alert_window.destroy,
+                  style='Secondary.TButton').pack(pady=20)
+
     def create_stock_alert_table(self, parent):
         """Create stock alert table"""
         # Header
@@ -223,7 +300,9 @@ class DashboardModule:
         header_frame.pack(fill='x', padx=20, pady=(15, 10))
         
         ttk.Label(header_frame, text="Stock Alert", style='SectionTitle.TLabel').pack(side='left')
-        ttk.Label(header_frame, text="View More →", style='ViewMore.TLabel').pack(side='right')
+        view_more_label = ttk.Label(header_frame, text="View More →", style='ViewMore.TLabel', cursor="hand2")
+        view_more_label.pack(side='right')
+        view_more_label.bind('<Button-1>', lambda e: self.show_all_stock_alerts())
         
         # Table
         table_frame = ttk.Frame(parent, style='Card.TFrame')
