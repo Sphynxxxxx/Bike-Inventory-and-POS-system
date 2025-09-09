@@ -474,20 +474,27 @@ class PointOfSaleModule:
             messagebox.showerror("Validation Error", message)
             return
         
-        # Show checkout confirmation
+        # Show checkout confirmation with detailed items list
         total = sum(item['quantity'] * item['unit_price'] for item in self.cart_items)
         
         # Get customer address
         customer_address = self.address_var.get().strip()
         address_display = f"Address: {customer_address}\n" if customer_address else ""
+        
+        # Build detailed items list for confirmation
+        items_detail = "Items:\n"
+        for item in self.cart_items:
+            item_total = item['quantity'] * item['unit_price']
+            items_detail += f"• {item['quantity']}x {item['product_name']} @ ₱{item['unit_price']:.2f} = ₱{item_total:.2f}\n"
 
-        if messagebox.askyesno("Confirm Checkout", 
-                              f"Customer: {customer_name}\n"
-                              f"{address_display}"
-                              f"Items: {len(self.cart_items)}\n"
-                              f"Total: ₱{total:,.2f}\n"
-                              f"Payment: {self.payment_var.get()}\n\n"
-                              f"Process this sale?"):
+        confirmation_message = (f"Customer: {customer_name}\n"
+                               f"{address_display}\n"
+                               f"{items_detail}\n"
+                               f"Total Amount: ₱{total:,.2f}\n"
+                               f"Payment Method: {self.payment_var.get()}\n\n"
+                               f"Process this sale?")
+
+        if messagebox.askyesno("Confirm Checkout", confirmation_message):
             
             # Process the sale
             success, result = self.main_app.record_sale(self.cart_items, self.payment_var.get())
@@ -501,82 +508,185 @@ class PointOfSaleModule:
                 # Clear cart and reset customer
                 self.cart_items.clear()
                 self.customer_var.set("")
+                self.address_var.set("")
                 self.refresh_cart()
                 self.load_products()  # Refresh to show updated stock
                 self.customer_entry.focus()
                 
                 # Print receipt option
                 if messagebox.askyesno("Print Receipt", "Would you like to print a receipt?"):
-                    self.print_receipt(result, customer_name, total)
+                    self.print_receipt(result, customer_name, customer_address, total)
                     
             else:
                 messagebox.showerror("Error", f"Failed to process sale:\n{result}")
     
-    def print_receipt(self, transaction_id, customer_name, total):
-        """Show receipt in a popup window"""
+    def print_receipt(self, transaction_id, customer_name, customer_address, total):
+        """Show receipt in a popup window with detailed product list"""
         receipt_window = tk.Toplevel(self.frame)
         receipt_window.title("Receipt")
-        receipt_window.geometry("400x600")
+        receipt_window.geometry("450x650")
         receipt_window.configure(bg='white')
         receipt_window.transient(self.frame)
         receipt_window.grab_set()
         
         # Center the window
         receipt_window.update_idletasks()
-        x = (receipt_window.winfo_screenwidth() // 2) - (400 // 2)
-        y = (receipt_window.winfo_screenheight() // 2) - (600 // 2)
-        receipt_window.geometry(f"400x600+{x}+{y}")
+        x = (receipt_window.winfo_screenwidth() // 2) - (450 // 2)
+        y = (receipt_window.winfo_screenheight() // 2) - (650 // 2)
+        receipt_window.geometry(f"450x650+{x}+{y}")
         
-        # Receipt content
-        receipt_frame = ttk.Frame(receipt_window)
-        receipt_frame.pack(fill='both', expand=True, padx=20, pady=20)
+        # Create main frame with scrollbar
+        main_frame = ttk.Frame(receipt_window)
+        main_frame.pack(fill='both', expand=True, padx=10, pady=10)
+        
+        # Create canvas and scrollbar for scrolling
+        canvas = tk.Canvas(main_frame, bg='white')
+        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Receipt content in scrollable frame
+        receipt_frame = ttk.Frame(scrollable_frame)
+        receipt_frame.pack(fill='both', expand=True, padx=15, pady=15)
         
         # Header
-        ttk.Label(receipt_frame, text="BIKE SHOP", font=('Arial', 16, 'bold')).pack()
-        ttk.Label(receipt_frame, text="Sales Receipt", font=('Arial', 12)).pack(pady=(0, 10))
+        header_frame = ttk.Frame(receipt_frame)
+        header_frame.pack(fill='x', pady=(0, 15))
+        
+        ttk.Label(header_frame, text="BIKE SHOP", font=('Arial', 18, 'bold')).pack()
+        ttk.Label(header_frame, text="Official Sales Receipt", font=('Arial', 12)).pack(pady=(5, 0))
+        ttk.Label(header_frame, text="=" * 50, font=('Courier', 10)).pack(pady=(5, 0))
         
         # Transaction info
         info_frame = ttk.Frame(receipt_frame)
-        info_frame.pack(fill='x', pady=(0, 10))
+        info_frame.pack(fill='x', pady=(0, 15))
         
-        ttk.Label(info_frame, text=f"Transaction ID: {transaction_id}").pack(anchor='w')
-        ttk.Label(info_frame, text=f"Customer: {customer_name}").pack(anchor='w')
-        if self.address_var.get().strip():
-            ttk.Label(info_frame, text=f"Address: {self.address_var.get().strip()}").pack(anchor='w')
-        ttk.Label(info_frame, text=f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}").pack(anchor='w')
-        ttk.Label(info_frame, text=f"Payment: {self.payment_var.get()}").pack(anchor='w')
+        ttk.Label(info_frame, text=f"Receipt #: {transaction_id}", font=('Arial', 10, 'bold')).pack(anchor='w')
+        ttk.Label(info_frame, text=f"Date: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}", font=('Arial', 10)).pack(anchor='w', pady=(2, 0))
+        ttk.Label(info_frame, text=f"Customer: {customer_name}", font=('Arial', 10, 'bold')).pack(anchor='w', pady=(5, 0))
+        
+        if customer_address:
+            ttk.Label(info_frame, text=f"Address: {customer_address}", font=('Arial', 10)).pack(anchor='w', pady=(2, 0))
+        
+        ttk.Label(info_frame, text=f"Payment Method: {self.payment_var.get()}", font=('Arial', 10)).pack(anchor='w', pady=(2, 0))
         
         # Separator
-        ttk.Separator(receipt_frame, orient='horizontal').pack(fill='x', pady=10)
+        ttk.Label(receipt_frame, text="=" * 50, font=('Courier', 10)).pack(pady=(10, 5))
         
-        # Items
+        # Items header
+        items_header_frame = ttk.Frame(receipt_frame)
+        items_header_frame.pack(fill='x', pady=(0, 5))
+        ttk.Label(items_header_frame, text="ITEMS PURCHASED:", font=('Arial', 12, 'bold')).pack(anchor='w')
+        
+        # Items detail
         items_frame = ttk.Frame(receipt_frame)
-        items_frame.pack(fill='both', expand=True, pady=(0, 10))
+        items_frame.pack(fill='x', pady=(0, 10))
         
-        for item in self.cart_items:
-            item_frame = ttk.Frame(items_frame)
-            item_frame.pack(fill='x', pady=2)
+        total_items = 0
+        for i, item in enumerate(self.cart_items, 1):
+            item_total = item['quantity'] * item['unit_price']
+            total_items += item['quantity']
             
-            ttk.Label(item_frame, text=f"{item['product_name']} ({item['category']})").pack(anchor='w')
-            ttk.Label(item_frame, text=f"  {item['quantity']} x ₱{item['unit_price']:.2f} = ₱{item['quantity'] * item['unit_price']:.2f}").pack(anchor='w')
+            # Item number and name
+            item_name_frame = ttk.Frame(items_frame)
+            item_name_frame.pack(fill='x', pady=(5 if i > 1 else 0, 0))
+            
+            ttk.Label(item_name_frame, 
+                     text=f"{i}. {item['product_name']}", 
+                     font=('Arial', 11, 'bold')).pack(anchor='w')
+            
+            # Category if available
+            if 'category' in item and item['category']:
+                ttk.Label(item_name_frame, 
+                         text=f"   Category: {item['category']}", 
+                         font=('Arial', 9), 
+                         foreground='gray').pack(anchor='w')
+            
+            # Quantity, price, and total
+            item_detail_frame = ttk.Frame(items_frame)
+            item_detail_frame.pack(fill='x', pady=(2, 0))
+            
+            ttk.Label(item_detail_frame, 
+                     text=f"   Qty: {item['quantity']} × ₱{item['unit_price']:,.2f} each", 
+                     font=('Arial', 10)).pack(anchor='w')
+            
+            ttk.Label(item_detail_frame, 
+                     text=f"   Subtotal: ₱{item_total:,.2f}", 
+                     font=('Arial', 10, 'bold')).pack(anchor='w')
         
-        # Separator
-        ttk.Separator(receipt_frame, orient='horizontal').pack(fill='x', pady=10)
+        # Summary section
+        ttk.Label(receipt_frame, text="=" * 50, font=('Courier', 10)).pack(pady=(15, 5))
         
-        # Total
-        ttk.Label(receipt_frame, text=f"TOTAL: ₱{total:,.2f}", 
-                 font=('Arial', 14, 'bold')).pack(anchor='w')
+        summary_frame = ttk.Frame(receipt_frame)
+        summary_frame.pack(fill='x', pady=(0, 15))
         
-        # Thank you message
-        ttk.Label(receipt_frame, text="Thank you for your purchase!", 
-                 font=('Arial', 10)).pack(pady=(20, 0))
+        ttk.Label(summary_frame, text=f"Total Items: {total_items}", font=('Arial', 11)).pack(anchor='w')
+        ttk.Label(summary_frame, text=f"Total Products: {len(self.cart_items)}", font=('Arial', 11)).pack(anchor='w', pady=(2, 0))
         
-        # Close button
-        ttk.Button(receipt_frame, text="Close", 
-                  command=receipt_window.destroy).pack(pady=(20, 0))
+        # Total amount (highlighted)
+        total_frame = ttk.Frame(receipt_frame)
+        total_frame.pack(fill='x', pady=(10, 0))
+        
+        ttk.Label(total_frame, text="=" * 50, font=('Courier', 10)).pack()
+        ttk.Label(total_frame, text=f"TOTAL AMOUNT: ₱{total:,.2f}", 
+                 font=('Arial', 16, 'bold'), foreground='blue').pack(pady=(5, 5))
+        ttk.Label(total_frame, text="=" * 50, font=('Courier', 10)).pack()
+        
+        # Footer
+        footer_frame = ttk.Frame(receipt_frame)
+        footer_frame.pack(fill='x', pady=(20, 0))
+        
+        ttk.Label(footer_frame, text="Thank you for choosing Bike Shop!", 
+                 font=('Arial', 12, 'bold')).pack(pady=(0, 5))
+        ttk.Label(footer_frame, text="Have a great ride!", 
+                 font=('Arial', 10, 'italic')).pack(pady=(0, 10))
+        ttk.Label(footer_frame, text="For questions or concerns, please contact us.", 
+                 font=('Arial', 9)).pack()
+        
+        # Pack canvas and scrollbar
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Button frame at bottom (not scrollable)
+        button_frame = ttk.Frame(receipt_window)
+        button_frame.pack(fill='x', padx=10, pady=(0, 10))
+        
+        # Print and Close buttons
+        btn_frame = ttk.Frame(button_frame)
+        btn_frame.pack()
+        
+        ttk.Button(btn_frame, text="Print Receipt", 
+                  command=lambda: self.actual_print_receipt(receipt_window),
+                  style='Primary.TButton').pack(side='left', padx=(0, 10))
+        
+        ttk.Button(btn_frame, text="Close", 
+                  command=receipt_window.destroy,
+                  style='Secondary.TButton').pack(side='left')
+        
+        # Bind mouse wheel to canvas for scrolling
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        canvas.bind("<MouseWheel>", _on_mousewheel)
         
         # Focus on close button
         receipt_window.focus_set()
+    
+    def actual_print_receipt(self, receipt_window):
+        """Handle actual printing of receipt"""
+        try:
+            # This would integrate with your system's printing functionality
+            messagebox.showinfo("Print", "Receipt sent to printer!\n(Print functionality would be implemented here)")
+            receipt_window.destroy()
+        except Exception as e:
+            messagebox.showerror("Print Error", f"Failed to print receipt: {str(e)}")
     
     def refresh(self):
         """Refresh the POS interface"""
