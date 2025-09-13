@@ -320,6 +320,7 @@ class PointOfSaleModule:
         """Handle double-click on product"""
         self.add_selected_product()
     
+
     def add_selected_product(self):
         """Add selected product to cart"""
         selection = self.product_tree.selection()
@@ -335,12 +336,28 @@ class PointOfSaleModule:
         item = self.product_tree.item(selection[0])
         product_data = item['values']
         
-        product_id = product_data[0]
-        product_name = product_data[1]
-        category = product_data[2]
-        price_str = product_data[3].replace('₱', '').replace(',', '')
-        price = float(price_str)
-        stock = int(product_data[4])
+        # FIX: Get the actual product data from database using the internal ID
+        internal_id = product_data[0]  # This is the database internal ID
+        
+        # Get the complete product info from database
+        try:
+            self.main_app.cursor.execute('SELECT id, name, price, stock, category, product_id FROM products WHERE id = ?', (internal_id,))
+            product = self.main_app.cursor.fetchone()
+            
+            if not product:
+                messagebox.showerror("Error", "Product not found in database!")
+                return
+                
+            # Use the correct product_id (index 5) instead of internal id (index 0)
+            product_id = product[5]  # This is the actual product_id field
+            product_name = product[1]
+            price = float(product[2])
+            stock = int(product[3])
+            category = product[4] if product[4] else 'General'
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to get product details: {str(e)}")
+            return
         
         if stock <= 0:
             messagebox.showwarning("Warning", f"'{product_name}' is out of stock!")
@@ -348,7 +365,7 @@ class PointOfSaleModule:
         
         # Check if product already in cart
         for i, cart_item in enumerate(self.cart_items):
-            if cart_item['product_id'] == product_id:
+            if cart_item['product_id'] == product_id:  # Now using correct product_id
                 # Increase quantity if stock allows
                 current_qty = cart_item['quantity']
                 if current_qty < stock:
@@ -361,7 +378,7 @@ class PointOfSaleModule:
         
         # Add new item to cart
         cart_item = {
-            'product_id': product_id,
+            'product_id': product_id,  # Now using correct product_id
             'product_name': product_name,
             'customer_name': self.customer_var.get().strip(),
             'unit_price': price,
@@ -376,6 +393,52 @@ class PointOfSaleModule:
         self.search_var.set("")
         self.apply_filters()
         self.search_entry.focus()
+
+
+    # Also fix the load_products method to ensure proper data structure:
+
+    def load_products(self):
+        """Load all products into memory and display"""
+        try:
+            # Get all products and store them - make sure to get product_id field
+            self.main_app.cursor.execute('SELECT id, name, price, stock, category, product_id FROM products ORDER BY name')
+            self.all_products = self.main_app.cursor.fetchall()
+            self.display_products(self.all_products)
+                
+        except Exception as e:
+            print(f"Error loading products: {e}")
+            messagebox.showerror("Error", f"Failed to load products: {str(e)}")
+
+
+    # And update display_products to show the correct product_id:
+
+    def display_products(self, products):
+        """Display products in the treeview"""
+        # Clear existing items
+        for item in self.product_tree.get_children():
+            self.product_tree.delete(item)
+        
+        # Add products to treeview
+        for product in products:
+            # Handle products with or without category
+            if len(product) > 4:
+                category = product[4] if product[4] else 'General'
+            else:
+                category = 'General'
+                
+            # Use product_id (index 5) for display instead of internal id
+            display_id = product[5] if len(product) > 5 and product[5] else f"ID_{product[0]}"
+                
+            self.product_tree.insert('', 'end', values=(
+                product[0],  # Keep internal id for selection (hidden from user)
+                product[1],  # name
+                category,    # category
+                f"₱{product[2]:.2f}",  # price
+                product[3]   # stock
+            ))
+        
+        # Update product count
+        self.product_count_var.set(f"Products: {len(products)}")
     
     def refresh_cart(self):
         """Refresh cart display and calculate total"""

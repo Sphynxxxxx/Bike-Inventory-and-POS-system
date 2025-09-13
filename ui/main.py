@@ -68,7 +68,7 @@ class BikeShopInventorySystem:
             )
         ''')
 
-        # Create sales table - UPDATED with customer_name field
+        # Create sales table with all required fields
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS sales (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -84,10 +84,18 @@ class BikeShopInventorySystem:
             )
         ''')
 
-        # Check if customer_name column exists, if not add it
-        self.cursor.execute("PRAGMA table_info(sales)")
-        columns = [column[1] for column in self.cursor.fetchall()]
-        if 'customer_name' not in columns:
+        # Check if customer_address column exists, add it if needed
+        try:
+            self.cursor.execute("PRAGMA table_info(sales)")
+            columns = [column[1] for column in self.cursor.fetchall()]
+            
+            # Add customer_address column if it doesn't exist
+            if 'customer_address' not in columns:
+                self.cursor.execute("ALTER TABLE sales ADD COLUMN customer_address TEXT")
+                self.conn.commit()
+                print("Added customer_address column to sales table")
+        except Exception as e:
+            print(f"Error checking/adding columns: {str(e)}")
             self.cursor.execute('ALTER TABLE sales ADD COLUMN customer_name TEXT')
             print("Added customer_name column to sales table")
 
@@ -383,49 +391,25 @@ class BikeShopInventorySystem:
             print(f"Error checking stock for {product_id}: {e}")
             return False
 
+   
     def validate_transaction(self, cart_items):
-        """Enhanced validation with database verification - UPDATED for customer names"""
-        if not cart_items:
-            return False, "Cart is empty"
+        """Validate that all products in cart exist and have sufficient stock"""
+        for item in cart_items:
+            product_id = item['product_id']
+            
+            # Check if product exists
+            self.cursor.execute('SELECT name, stock FROM products WHERE product_id = ?', (product_id,))
+            product = self.cursor.fetchone()
+            
+            if not product:
+                return False, f"Product {item['product_name']} (ID: {product_id}) not found in inventory"
+            
+            # Check stock availability
+            product_name, stock = product
+            if item['quantity'] > stock:
+                return False, f"Insufficient stock for {product_name}. Available: {stock}, Requested: {item['quantity']}"
         
-        try:
-            for item in cart_items:
-                # Check required fields including customer_name
-                required_fields = ['product_id', 'product_name', 'customer_name', 'unit_price', 'quantity']
-                for field in required_fields:
-                    if field not in item or item[field] is None:
-                        return False, f"Missing {field} for item: {item.get('product_name', 'Unknown')}"
-                
-                # Validate product exists in database
-                self.cursor.execute('''
-                    SELECT name, stock, price FROM products WHERE product_id = ?
-                ''', (item['product_id'],))
-                db_product = self.cursor.fetchone()
-                
-                if not db_product:
-                    return False, f"Product {item['product_name']} (ID: {item['product_id']}) not found in inventory"
-                
-                db_name, db_stock, db_price = db_product
-                
-                # Validate stock
-                if db_stock < item['quantity']:
-                    return False, f"Insufficient stock for {item['product_name']}. Available: {db_stock}, Requested: {item['quantity']}"
-                
-                # Validate quantity and price
-                if item['quantity'] <= 0:
-                    return False, f"Invalid quantity for {item['product_name']}"
-                
-                if item['unit_price'] <= 0:
-                    return False, f"Invalid price for {item['product_name']}"
-                
-                # Validate customer name
-                if not item['customer_name'].strip():
-                    return False, f"Customer name is required for {item['product_name']}"
-            
-            return True, "Valid transaction"
-            
-        except Exception as e:
-            return False, f"Validation error: {str(e)}"
+        return True, "Validation successful"
 
     def record_sale(self, cart_items, payment_method='Cash'):
         """Record a sale transaction and update inventory - UPDATED with customer name support"""

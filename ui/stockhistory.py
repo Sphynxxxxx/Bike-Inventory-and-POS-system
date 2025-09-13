@@ -282,22 +282,21 @@ class StockHistoryModule:
             messagebox.showerror("Error", f"Unexpected error occurred: {str(e)}")
 
     def refresh_stock_history(self):
-        """Refresh the stock history display - UPDATED to show customer names and addresses"""
+        """Refresh the stock history display - UPDATED to exclude initial stock records"""
         if not hasattr(self, 'stock_history_tree') or not self.stock_history_tree.winfo_exists():
-            print("Stock history tree not available yet")
             return
             
-        try:
-            # Clear existing items
-            for item in self.stock_history_tree.get_children():
-                self.stock_history_tree.delete(item)
+        # Clear existing items
+        for item in self.stock_history_tree.get_children():
+            self.stock_history_tree.delete(item)
             
+        try:
             # Build query based on filters
             date_filter = self.date_filter_var.get() if hasattr(self, 'date_filter_var') else 'All Time'
             category_filter = self.stock_category_var.get() if hasattr(self, 'stock_category_var') else 'All Categories'
             movement_filter = self.movement_type_var.get() if hasattr(self, 'movement_type_var') else 'All Movements'
             
-            # Base query for sales (stock out) - UPDATED to include customer_name and address
+            # Base query for sales (stock out) - Shows actual customer transactions
             sales_query = '''
                 SELECT 
                     s.id,
@@ -308,7 +307,7 @@ class StockHistoryModule:
                     s.product_id,
                     s.product_category,
                     s.customer_name,
-                    s.customer_address,
+                    COALESCE(s.customer_address, 'N/A') as customer_address,
                     'Sale (Out)' as movement_type,
                     s.quantity,
                     s.price,
@@ -319,7 +318,7 @@ class StockHistoryModule:
                 WHERE 1=1
             '''
             
-            # Query for stock additions
+            # Query for manual stock additions (exclude INITIAL stock)
             stock_add_query = '''
                 SELECT 
                     sm.id,
@@ -331,47 +330,33 @@ class StockHistoryModule:
                     p.category as product_category,
                     'System' as customer_name,
                     'N/A' as customer_address,
-                    sm.movement_type,
+                    CASE 
+                        WHEN sm.movement_type = 'IN' THEN 'Stock Added (In)'
+                        ELSE sm.movement_type
+                    END as movement_type,
                     sm.quantity,
                     p.price as unit_price,
                     (sm.quantity * p.price) as total_amount,
                     p.stock as current_stock
                 FROM stock_movements sm
                 LEFT JOIN products p ON sm.product_id = p.product_id
-                WHERE sm.movement_type IN ('IN', 'Stock Added')
+                WHERE sm.movement_type IN ('IN', 'Stock Added') 
+                AND sm.reason != 'INITIAL_STOCK'
+                AND sm.reference_id != 'INITIAL'
             '''
             
-            # Query for initial stock
-            initial_stock_query = '''
-                SELECT 
-                    p.id,
-                    DATE(p.date_added) as date_added,
-                    TIME(p.date_added) as time_added,
-                    'INITIAL' as transaction_id,
-                    p.name as product_name,
-                    p.product_id,
-                    p.category as product_category,
-                    'System' as customer_name,
-                    'N/A' as customer_address,
-                    'Stock Added (In)' as movement_type,
-                    p.stock as quantity,
-                    p.price,
-                    (p.stock * p.price) as total,
-                    p.stock as current_stock
-                FROM products p
-                WHERE 1=1
-            '''
+            # REMOVED: initial_stock_query - This eliminates the INITIAL entries
             
             queries = []
             params = []
             
             # Determine which queries to use based on movement filter
             if movement_filter == 'All Movements':
-                queries = [sales_query, stock_add_query, initial_stock_query]
+                queries = [sales_query, stock_add_query]  # Only sales and manual stock additions
             elif movement_filter == 'Sales (Out)':
                 queries = [sales_query]
             elif movement_filter == 'Stock Added (In)':
-                queries = [stock_add_query, initial_stock_query]
+                queries = [stock_add_query]  # Only manual additions, no initial stock
             elif movement_filter == 'Returns (In)':
                 queries = [stock_add_query.replace("IN ('IN', 'Stock Added')", "= 'IN'")]
             
@@ -382,56 +367,47 @@ class StockHistoryModule:
                 date_condition = ""
                 if date_filter == 'Today':
                     if "sales" in query.lower():
-                        date_condition = " AND sale_date = DATE('now')"
+                        date_condition = " AND DATE(s.sale_date) = DATE('now')"
                     elif "stock_movements" in query.lower():
-                        date_condition = " AND movement_date = DATE('now')"
-                    elif "products" in query.lower():
-                        date_condition = " AND date_added = DATE('now')"
+                        date_condition = " AND DATE(sm.movement_date) = DATE('now')"
                 elif date_filter == 'Last 7 Days':
                     if "sales" in query.lower():
-                        date_condition = " AND sale_date >= DATE('now', '-7 days')"
+                        date_condition = " AND DATE(s.sale_date) >= DATE('now', '-7 days')"
                     elif "stock_movements" in query.lower():
-                        date_condition = " AND movement_date >= DATE('now', '-7 days')"
-                    elif "products" in query.lower():
-                        date_condition = " AND date_added >= DATE('now', '-7 days')"
+                        date_condition = " AND DATE(sm.movement_date) >= DATE('now', '-7 days')"
                 elif date_filter == 'Last 30 Days':
                     if "sales" in query.lower():
-                        date_condition = " AND sale_date >= DATE('now', '-30 days')"
+                        date_condition = " AND DATE(s.sale_date) >= DATE('now', '-30 days')"
                     elif "stock_movements" in query.lower():
-                        date_condition = " AND movement_date >= DATE('now', '-30 days')"
-                    elif "products" in query.lower():
-                        date_condition = " AND date_added >= DATE('now', '-30 days')"
+                        date_condition = " AND DATE(sm.movement_date) >= DATE('now', '-30 days')"
                 elif date_filter == 'Last 90 Days':
                     if "sales" in query.lower():
-                        date_condition = " AND sale_date >= DATE('now', '-90 days')"
+                        date_condition = " AND DATE(s.sale_date) >= DATE('now', '-90 days')"
                     elif "stock_movements" in query.lower():
-                        date_condition = " AND movement_date >= DATE('now', '-90 days')"
-                    elif "products" in query.lower():
-                        date_condition = " AND date_added >= DATE('now', '-90 days')"
+                        date_condition = " AND DATE(sm.movement_date) >= DATE('now', '-90 days')"
                 
                 query += date_condition
                 
                 # Add category filter
                 if category_filter != 'All Categories':
-                    if "WHERE" in query:
-                        query += " AND product_category = ?"
-                    else:
-                        query += " WHERE product_category = ?"
-                    # We'll add the parameter later
+                    if "sales" in query.lower():
+                        query += " AND s.product_category = ?"
+                    elif "stock_movements" in query.lower():
+                        query += " AND p.category = ?"
+                    params.append(category_filter)
                 
                 final_queries.append(query)
             
-            # Build the final UNION ALL query
-            final_query = " UNION ALL ".join(final_queries)
-            final_query += " ORDER BY sale_date DESC, sale_time DESC, movement_date DESC, movement_time DESC, date_added DESC"
-            
-            # Add category parameter if needed
-            if category_filter != 'All Categories':
-                params = [category_filter] * len([q for q in final_queries if "product_category = ?" in q])
-            
-            # Execute query
-            self.main_app.cursor.execute(final_query, params)
-            history_data = self.main_app.cursor.fetchall()
+            # Build the final UNION ALL query (only if we have queries)
+            if final_queries:
+                final_query = " UNION ALL ".join(final_queries)
+                final_query += " ORDER BY sale_date DESC, movement_date DESC, sale_time DESC, movement_time DESC"
+                
+                # Execute query
+                self.main_app.cursor.execute(final_query, params)
+                history_data = self.main_app.cursor.fetchall()
+            else:
+                history_data = []
             
             # Insert data into treeview
             total_transactions = 0
@@ -473,9 +449,9 @@ class StockHistoryModule:
                     f"{current_stock:,}"
                 ))
                 
-                # Update summary statistics
+                # Update summary statistics (only count sales for revenue)
                 total_transactions += 1
-                if movement_type == 'Sale (Out)':
+                if 'Sale (Out)' in movement_type:
                     total_items_sold += quantity
                     total_revenue += total_amount
             
@@ -485,17 +461,31 @@ class StockHistoryModule:
                 self.total_items_sold_var.set(f"{total_items_sold:,}")
                 self.total_revenue_var.set(f"₱{total_revenue:,.2f}")
                 
-            print(f"Loaded {len(history_data)} stock movement records")  # Debug print
+            print(f"Loaded {len(history_data)} stock movement records (excluding initial stock)")
             
         except Exception as e:
             print(f"Error refreshing stock history: {e}")
             import traceback
-            traceback.print_exc()  # This will show the full error traceback
+            traceback.print_exc()
             messagebox.showerror("Error", f"Failed to load stock history: {str(e)}")
 
     def filter_stock_history(self, event=None):
         """Filter stock history based on selected criteria"""
         self.refresh_stock_history()
+
+    # Add this to your database initialization code if needed
+    def check_and_add_customer_address_column(self):
+        """Check if customer_address column exists in sales table, add it if not"""
+        try:
+            self.cursor.execute("PRAGMA table_info(sales)")
+            columns = [column[1] for column in self.cursor.fetchall()]
+            
+            if 'customer_address' not in columns:
+                self.cursor.execute("ALTER TABLE sales ADD COLUMN customer_address TEXT")
+                self.conn.commit()
+                print("Added customer_address column to sales table")
+        except Exception as e:
+            print(f"Error checking/adding customer_address column: {e}")
 
     def refresh(self):
         """Refresh the stock history interface"""

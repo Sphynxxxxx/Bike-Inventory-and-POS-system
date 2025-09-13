@@ -105,46 +105,44 @@ class InventoryModule:
                     return
                     
                 print(f"Dialog result: {dialog.result}")  
-                print(f"Dialog result: {dialog.result}")  
                 
                 # Validate required fields
                 if not dialog.result.get('name'):
                     messagebox.showerror("Error", "Product name is required!")
                     return
                     
-                if not dialog.result.get('product_id'):
+                # Validate product_id is provided and is not empty
+                product_id_input = dialog.result.get('product_id', '').strip()
+                if not product_id_input:
                     messagebox.showerror("Error", "Product ID is required!")
                     return
                 
-                # Check if product_id already exists
+                # Check if product_id already exists - FIXED: Use the actual product_id field
                 self.main_app.cursor.execute('SELECT COUNT(*) FROM products WHERE product_id = ?', 
-                                  (dialog.result['product_id'],))
+                                (product_id_input,))
                 if self.main_app.cursor.fetchone()[0] > 0:
                     messagebox.showerror("Error", "Product ID already exists! Please use a unique Product ID.")
                     return
                 
-                # Format the product_id to ensure consistency
-                formatted_product_id = str(dialog.result['product_id']).strip()
-                
-                # Insert the product with formatted product_id
+                # Insert the product with the provided product_id
                 self.main_app.cursor.execute('''
                     INSERT INTO products (name, price, stock, category, product_id)
                     VALUES (?, ?, ?, ?, ?)
                 ''', (dialog.result['name'], 
-                      float(dialog.result['price']), 
-                      int(dialog.result['stock']),
-                      dialog.result['category'], 
-                      formatted_product_id))
+                    float(dialog.result['price']), 
+                    int(dialog.result['stock']),
+                    dialog.result['category'], 
+                    product_id_input))  # Use the validated product_id
                 
                 # Record initial stock addition
-                if dialog.result['stock'] > 0:
+                if int(dialog.result['stock']) > 0:
                     self.main_app.cursor.execute('''
                         INSERT INTO stock_movements (product_id, product_name, movement_type, quantity, 
-                                                   reference_id, reason, notes)
+                                                reference_id, reason, notes)
                         VALUES (?, ?, ?, ?, ?, ?, ?)
-                    ''', (dialog.result['product_id'], dialog.result['name'], 'IN', 
-                          dialog.result['stock'], 'INITIAL', 'INITIAL_STOCK', 
-                          'Initial stock when product was added to inventory'))
+                    ''', (product_id_input, dialog.result['name'], 'IN', 
+                        int(dialog.result['stock']), 'INITIAL', 'INITIAL_STOCK', 
+                        'Initial stock when product was added to inventory'))
                 
                 self.main_app.conn.commit()
                 messagebox.showinfo("Success", f"Product '{dialog.result['name']}' added successfully!")
@@ -160,7 +158,7 @@ class InventoryModule:
             messagebox.showerror("Error", f"Database error: {str(e)}")
         except Exception as e:
             messagebox.showerror("Error", f"Unexpected error: {str(e)}")
-            print(f"Exception in add_product: {e}")  
+            print(f"Exception in add_product: {e}") 
 
     def edit_product(self):
         if not hasattr(self, 'inventory_tree'):
@@ -173,7 +171,7 @@ class InventoryModule:
             return
             
         item = self.inventory_tree.item(selection[0])
-        product_id = item['values'][0]
+        product_id = item['values'][0]  # This is the internal ID, not product_id
         
         self.main_app.cursor.execute('SELECT * FROM products WHERE id = ?', (product_id,))
         product = self.main_app.cursor.fetchone()
@@ -190,14 +188,25 @@ class InventoryModule:
                 new_stock = int(dialog.result['stock'])
                 stock_difference = new_stock - old_stock
                 
+                # Get the original product_id from the database
+                original_product_id = product[5]  # product_id is at index 5
+                
                 # Format the product_id to ensure consistency
                 formatted_product_id = str(dialog.result['product_id']).strip()
+                
+                # Check if product_id is being changed and if the new one already exists
+                if formatted_product_id != original_product_id:
+                    self.main_app.cursor.execute('SELECT COUNT(*) FROM products WHERE product_id = ?', 
+                                    (formatted_product_id,))
+                    if self.main_app.cursor.fetchone()[0] > 0:
+                        messagebox.showerror("Error", "Product ID already exists! Please use a unique Product ID.")
+                        return
                 
                 self.main_app.cursor.execute('''
                     UPDATE products SET name = ?, price = ?, stock = ?, category = ?, product_id = ?
                     WHERE id = ?
                 ''', (dialog.result['name'], float(dialog.result['price']), new_stock,
-                      dialog.result['category'], formatted_product_id, product_id))
+                    dialog.result['category'], formatted_product_id, product_id))
                 
                 # Record stock movement if stock changed
                 if stock_difference != 0:
@@ -207,10 +216,10 @@ class InventoryModule:
                     
                     self.main_app.cursor.execute('''
                         INSERT INTO stock_movements (product_id, product_name, movement_type, quantity, 
-                                                   reference_id, reason, notes)
+                                                reference_id, reason, notes)
                         VALUES (?, ?, ?, ?, ?, ?, ?)
-                    ''', (dialog.result['product_id'], dialog.result['name'], movement_type, 
-                          abs(stock_difference), f"EDIT_{product_id}", reason, notes))
+                    ''', (formatted_product_id, dialog.result['name'], movement_type, 
+                        abs(stock_difference), f"EDIT_{product_id}", reason, notes))
                 
                 self.main_app.conn.commit()
                 self.refresh_products()
