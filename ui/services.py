@@ -734,8 +734,8 @@ class ServicesModule:
             time_combo.pack(fill='x', pady=(0, 12))
             
             # Notes
-            tk.Label(schedule_content, text="Additional Notes:", 
-                    font=('Arial', 10, 'bold'), bg='white', fg='#374151').pack(anchor='w', pady=(0, 5))
+            #tk.Label(schedule_content, text="Additional Notes:", 
+                    #font=('Arial', 10, 'bold'), bg='white', fg='#374151').pack(anchor='w', pady=(0, 5))
             
             notes_frame = tk.Frame(schedule_content, bg='white')
             notes_frame.pack(fill='x', pady=(0, 8))
