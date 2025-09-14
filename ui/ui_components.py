@@ -139,7 +139,7 @@ class CustomerQuantityDialog:
                 'quantity': quantity
             }
             
-            print(f"CustomerQuantityDialog result: {self.result}")  # Debug print
+            print(f"CustomerQuantityDialog result: {self.result}")  
             self.dialog.destroy()
             
         except Exception as e:
@@ -159,7 +159,7 @@ class ProductDialog:
         try:
             self.dialog = tk.Toplevel(parent)
             self.dialog.title(title)
-            self.dialog.geometry("450x550")  # Increased height for all fields
+            self.dialog.geometry("450x550")  
             self.dialog.transient(parent)
             self.dialog.grab_set()
             self.dialog.configure(bg='#ffffff')
@@ -421,7 +421,7 @@ class SalesEntryFrame(ttk.Frame):
             super().__init__(parent, style='Content.TFrame')
             self.main_app = main_app
             self.cart_items = []
-            self.products_data = {}  # Store complete product data
+            self.products_data = {}  
             self.create_pos_interface()
         except Exception as e:
             print(f"Error creating SalesEntryFrame: {e}")
@@ -642,7 +642,6 @@ def create_styles():
             except tk.TclError:
                 print("Warning: 'alt' theme not available, using system default")
 
-        # Color scheme based on the bike shop logo
         colors = {
             'bg': '#f0fdff',                    # Very light cyan background
             'sidebar_bg': '#0f172a',            # Deep dark blue/black from logo
@@ -691,7 +690,7 @@ def create_styles():
             style.configure('Logo.TLabel', 
                            background=colors['sidebar_bg'], 
                            foreground=colors['sidebar_text'],
-                           font=('Helvetica', 16))  # Larger font for bike emoji
+                           font=('Helvetica', 16)) 
             style.configure('LogoTitle.TLabel', 
                            background=colors['sidebar_bg'], 
                            foreground=colors['sidebar_text'],
