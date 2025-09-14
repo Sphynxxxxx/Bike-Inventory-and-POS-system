@@ -97,7 +97,7 @@ class InventoryModule:
             return
             
         item = self.inventory_tree.item(selection[0])
-        product_id = item['values'][0] 
+        product_id = item['values'][0]  # Internal database ID
         product_name = item['values'][1]
         current_stock = item['values'][3]
         product_code = item['values'][5]  

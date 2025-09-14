@@ -286,7 +286,7 @@ class DashboardModule:
 
     
     def create_recent_sales_table(self, parent):
-        """Create recent sales table - UPDATED to show customer name and fix amount display"""
+        """Create recent sales table - FIXED amount formatting to always show proper decimals"""
         # Header
         header_frame = ttk.Frame(parent, style='Card.TFrame')
         header_frame.pack(fill='x', padx=20, pady=(15, 10))
@@ -303,7 +303,7 @@ class DashboardModule:
         table_frame = ttk.Frame(parent, style='Card.TFrame')
         table_frame.pack(fill='both', expand=True, padx=20, pady=(0, 15))
         
-        columns = ('#', 'Date', 'Product', 'Customer', 'Amount')
+        columns = ('#', 'Date', 'Product', 'Customer')
         tree = ttk.Treeview(table_frame, columns=columns, show='headings', style='Dashboard.Treeview', height=6)
         
         # Configure columns
@@ -311,13 +311,13 @@ class DashboardModule:
         tree.heading('Date', text='Date')
         tree.heading('Product', text='Product')
         tree.heading('Customer', text='Customer')
-        tree.heading('Amount', text='Amount')
+        #tree.heading('Amount', text='Amount')
         
         tree.column('#', width=30)
         tree.column('Date', width=70)
         tree.column('Product', width=100)
         tree.column('Customer', width=80)
-        tree.column('Amount', width=80)
+        #tree.column('Amount', width=80)
         
         # Get recent sales data
         recent_sales = self.main_app.get_recent_sales(5)
@@ -333,31 +333,30 @@ class DashboardModule:
             else:
                 formatted_date = str(sale_date)[:6]
             
-            # Fix amount formatting - ensure it's a proper number
             try:
-                # Get the total amount (sale[5]) and ensure it's a float
                 total_amount = sale[5]
                 if total_amount is None:
                     total_amount = 0.0
                 elif isinstance(total_amount, str):
-                    # If it's a string, try to convert to float
                     total_amount = float(total_amount.replace(',', '').replace('₱', '').strip())
                 else:
-                    # If it's already a number, ensure it's a float
                     total_amount = float(total_amount)
-                    
-                formatted_amount = f"₱{total_amount:,.2f}"
                 
+                if total_amount >= 1000:
+                    formatted_amount = f"₱{total_amount:,.2f}"  
+                else:
+                    formatted_amount = f"₱{total_amount:.2f}"   
+                    
             except (ValueError, TypeError, IndexError) as e:
                 print(f"Error formatting amount for sale {sale}: {e}")
-                formatted_amount = "₱0.00"
+                formatted_amount = "₱0"
             
             tree.insert('', 'end', values=(
                 f"{i:02d}",
                 formatted_date,
                 sale[1][:12] + "..." if len(sale[1]) > 12 else sale[1],  
                 sale[3][:10] + "..." if sale[3] and len(sale[3]) > 10 else (sale[3] or "N/A"),
-                formatted_amount  
+                formatted_amount  # Now properly formatted with consistent decimal places
             ))
         
         tree.pack(fill='both', expand=True)

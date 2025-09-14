@@ -159,7 +159,7 @@ class ProductDialog:
         try:
             self.dialog = tk.Toplevel(parent)
             self.dialog.title(title)
-            self.dialog.geometry("450x500")  # Increased height to 500px
+            self.dialog.geometry("450x550")  # Increased height for all fields
             self.dialog.transient(parent)
             self.dialog.grab_set()
             self.dialog.configure(bg='#ffffff')
@@ -167,8 +167,8 @@ class ProductDialog:
             # Center the dialog
             self.dialog.update_idletasks()
             x = (self.dialog.winfo_screenwidth() // 2) - (450 // 2)
-            y = (self.dialog.winfo_screenheight() // 2) - (500 // 2)  # Adjusted for new height
-            self.dialog.geometry(f"450x500+{x}+{y}")
+            y = (self.dialog.winfo_screenheight() // 2) - (550 // 2)
+            self.dialog.geometry(f"450x550+{x}+{y}")
             
             self.create_widgets(product_data)
             
@@ -201,6 +201,11 @@ class ProductDialog:
             self.price_entry = ttk.Entry(main_frame, textvariable=self.price_var, width=35, style='Modern.TEntry')
             self.price_entry.grid(row=2, column=1, pady=8, sticky='ew')
 
+            # Stock Quantity - FIXED: Added the missing stock field
+            #ttk.Label(main_frame, text="Stock Quantity:", style='FieldLabel.TLabel').grid(row=3, column=0, sticky='w', pady=8)
+            #self.stock_var = tk.StringVar(value=str(product_data[3]) if product_data else "0")
+            #self.stock_entry = ttk.Entry(main_frame, textvariable=self.stock_var, width=35, style='Modern.TEntry')
+            #self.stock_entry.grid(row=3, column=1, pady=8, sticky='ew')
 
             # Category
             ttk.Label(main_frame, text="Category:", style='FieldLabel.TLabel').grid(row=4, column=0, sticky='w', pady=8)
@@ -223,34 +228,24 @@ class ProductDialog:
             button_frame = ttk.Frame(main_frame, style='Content.TFrame')
             button_frame.grid(row=6, column=0, columnspan=2, pady=(30, 15), sticky='ew')
 
-            # Submit button frame (centered)
-            submit_frame = ttk.Frame(main_frame, style='Content.TFrame')
-            submit_frame.grid(row=7, column=0, columnspan=2, pady=(0, 30), sticky='ew')
-            
-            # Add some padding to center the submit button
-            submit_frame.columnconfigure(0, weight=1)
-            submit_frame.columnconfigure(2, weight=1)
-            
-            # Action buttons at the bottom
+            # Action buttons
             cancel_btn = ttk.Button(button_frame, text="Cancel", command=self.cancel, 
                                    style='Secondary.TButton', width=15)
-            cancel_btn.pack(side='right', padx=(10, 20))  # Increased right padding
+            cancel_btn.pack(side='right', padx=(10, 20))
             
             save_btn = ttk.Button(button_frame, text="Save Product", command=self.save, 
                                  style='Primary.TButton', width=15)
             save_btn.pack(side='right', padx=(10, 0))
             
-            
-            
             # Bind keys
-            self.dialog.bind('<Return>', lambda e: self.save())  # Enter key
-            self.dialog.bind('<KP_Enter>', lambda e: self.save())  # Numpad Enter key
-            self.dialog.bind('<Escape>', lambda e: self.cancel())  # Escape key
+            self.dialog.bind('<Return>', lambda e: self.save())
+            self.dialog.bind('<KP_Enter>', lambda e: self.save())
+            self.dialog.bind('<Escape>', lambda e: self.cancel())
             
-            # Bind Tab key to move between fields
+            # Bind Tab key to move between fields and Enter to save
             for widget in [self.name_entry, self.price_entry, self.stock_entry, 
                          self.category_combo, self.product_id_entry]:
-                widget.bind('<Return>', lambda e: self.save())  # Enter key in any field saves
+                widget.bind('<Return>', lambda e: self.save())
         except Exception as e:
             print(f"Error creating widgets in ProductDialog: {e}")
 
@@ -975,7 +970,6 @@ def create_styles():
         traceback.print_exc()
         return False
 
-# Color reference for manual styling or CSS
 BIKE_SHOP_COLORS = {
     'Bright Cyan': '#00d4ff',      # Top of gradient - electric cyan
     'Turquoise': '#00bcd4',        # Main brand color
