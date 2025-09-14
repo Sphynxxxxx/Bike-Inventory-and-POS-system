@@ -576,7 +576,7 @@ class ServicesModule:
             # Clean and convert price
             price = float(price_str.replace('₱', '').replace(',', ''))
             
-            print(f"Booking service: ID={service_db_id}, Name={service_name}, Price={price}")
+            print(f"Services: ID={service_db_id}, Name={service_name}, Price={price}")
             
             # Open booking dialog with corrected parameters
             self.open_booking_dialog(service_db_id, service_name, price)
@@ -792,7 +792,7 @@ class ServicesModule:
                     self.load_service_history()
                     
                 except Exception as e:
-                    print(f"Error confirming booking: {e}")
+                    print(f"Error confirming services: {e}")
                     messagebox.showerror("Error", f"Failed to service: {str(e)}")
             
             def cancel_booking():
@@ -833,7 +833,7 @@ class ServicesModule:
             
         except Exception as e:
             print(f"Error creating booking dialog: {e}")
-            messagebox.showerror("Error", f"Failed to open booking dialog: {str(e)}")
+            messagebox.showerror("Error", f"Failed to open services dialog: {str(e)}")
     
     def add_service(self):
         """Add a new service"""
@@ -944,7 +944,7 @@ class ServicesModule:
         """Update status and payment status of selected booking with improved UI"""
         selection = self.history_tree.selection()
         if not selection:
-            messagebox.showwarning("Warning", "Please select a booking to update.")
+            messagebox.showwarning("Warning", "Please select a services to update.")
             return
         
         item = self.history_tree.item(selection[0])
@@ -1008,7 +1008,7 @@ class ServicesModule:
             content.pack(fill='x')
             
             # Title
-            title_label = tk.Label(content, text="Update Booking Status", 
+            title_label = tk.Label(content, text="Update Services Status", 
                                 font=('Arial', 18, 'bold'), bg='#f8fafc', fg='#1e293b')
             title_label.pack(pady=(0, 20))
             
