@@ -561,7 +561,7 @@ class ServicesModule:
         """Book the selected service - FIXED VERSION"""
         selection = self.services_tree.selection()
         if not selection:
-            messagebox.showwarning("Warning", "Please select a service to book.")
+            messagebox.showwarning("Warning", "Please select a services.")
             return
         
         try:
@@ -590,7 +590,7 @@ class ServicesModule:
         try:
             # Create dialog window
             dialog = tk.Toplevel()
-            dialog.title("Book Service")
+            dialog.title("Services")
             dialog.geometry("480x650")
             dialog.configure(bg='white')
             dialog.resizable(False, False)
@@ -737,16 +737,16 @@ class ServicesModule:
             #tk.Label(schedule_content, text="Additional Notes:", 
                     #font=('Arial', 10, 'bold'), bg='white', fg='#374151').pack(anchor='w', pady=(0, 5))
             
-            notes_frame = tk.Frame(schedule_content, bg='white')
-            notes_frame.pack(fill='x', pady=(0, 8))
+            #notes_frame = tk.Frame(schedule_content, bg='white')
+            #notes_frame.pack(fill='x', pady=(0, 8))
             
-            notes_text = tk.Text(notes_frame, height=4, wrap=tk.WORD, 
-                                font=('Arial', 9), relief='solid', bd=1, bg='#f9fafb')
-            notes_scrollbar = tk.Scrollbar(notes_frame, orient='vertical', command=notes_text.yview)
-            notes_text.configure(yscrollcommand=notes_scrollbar.set)
+            #notes_text = tk.Text(notes_frame, height=4, wrap=tk.WORD, 
+                                #font=('Arial', 9), relief='solid', bd=1, bg='#f9fafb')
+            #notes_scrollbar = tk.Scrollbar(notes_frame, orient='vertical', command=notes_text.yview)
+            #notes_text.configure(yscrollcommand=notes_scrollbar.set)
             
-            notes_text.pack(side='left', fill='both', expand=True)
-            notes_scrollbar.pack(side='right', fill='y')
+            #notes_text.pack(side='left', fill='both', expand=True)
+            #notes_scrollbar.pack(side='right', fill='y')
             
             # Action buttons - Fixed at bottom
             button_container = tk.Frame(dialog, bg='white')
@@ -793,7 +793,7 @@ class ServicesModule:
                     
                 except Exception as e:
                     print(f"Error confirming booking: {e}")
-                    messagebox.showerror("Error", f"Failed to book service: {str(e)}")
+                    messagebox.showerror("Error", f"Failed to service: {str(e)}")
             
             def cancel_booking():
                 dialog.destroy()
@@ -962,7 +962,7 @@ class ServicesModule:
         try:
             # Create dialog window
             dialog = tk.Toplevel()
-            dialog.title("Update Booking Status")
+            dialog.title("Update Services Status")
             dialog.geometry("520x650")
             dialog.configure(bg='#f8fafc')
             dialog.resizable(True, True)
@@ -1393,7 +1393,7 @@ class ServicesModule:
                 
                 # Create detailed information dialog
                 detail_dialog = tk.Toplevel()
-                detail_dialog.title(f"Booking Details - {booking_id}")
+                detail_dialog.title(f"Services Details - {booking_id}")
                 detail_dialog.geometry("520x650")
                 detail_dialog.configure(bg='#f8fafc')
                 detail_dialog.resizable(True, True)
@@ -1439,7 +1439,7 @@ class ServicesModule:
                 content.pack(fill='x')
                 
                 # Title
-                title_label = tk.Label(content, text=f"Booking Details", 
+                title_label = tk.Label(content, text=f"Services Details", 
                                     font=('Arial', 18, 'bold'), bg='#f8fafc', fg='#1e293b')
                 title_label.pack(pady=(0, 20))
                 
@@ -1669,7 +1669,7 @@ class ServicesModule:
                 
         except Exception as e:
             print(f"Error in view_booking_details: {e}")
-            messagebox.showerror("Error", f"Failed to load booking details: {str(e)}")
+            messagebox.showerror("Error", f"Failed to load services details: {str(e)}")
             import traceback
             traceback.print_exc()
     
