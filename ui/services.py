@@ -364,7 +364,7 @@ class ServicesModule:
         action_frame = ttk.Frame(parent, style='Content.TFrame')
         action_frame.pack(fill='x', padx=20, pady=(0, 20))
         
-        ttk.Button(action_frame, text="📅 Book Selected Service", 
+        ttk.Button(action_frame, text="📅Select Service", 
                   command=self.book_selected_service,
                   style='Success.TButton').pack(side='left', padx=(0, 10))
         
@@ -401,7 +401,7 @@ class ServicesModule:
         history_table_frame.pack(fill='both', expand=True, padx=20, pady=(0, 20))
         
         # Create treeview for service history
-        history_columns = ('ID', 'Booking ID', 'Date', 'Customer', 'Service', 'Contact', 
+        history_columns = ('ID', 'Service ID', 'Date', 'Customer', 'Service', 'Contact', 
                           'Scheduled', 'Status', 'Payment', 'Price')
         self.history_tree = ttk.Treeview(history_table_frame, columns=history_columns, 
                                         show='headings', style='Modern.Treeview')
@@ -409,7 +409,7 @@ class ServicesModule:
         # Configure history columns
         history_widths = {
             'ID': 50,
-            'Booking ID': 100,
+            'Service ID': 100,
             'Date': 100,
             'Customer': 120,
             'Service': 150,
@@ -638,7 +638,7 @@ class ServicesModule:
             content_frame.pack(fill='x')
             
             # Title
-            title_label = tk.Label(content_frame, text=f"Book Service: {service_name}", 
+            title_label = tk.Label(content_frame, text=f"Services: {service_name}", 
                                 font=('Arial', 16, 'bold'), bg='white', fg='#1e293b')
             title_label.pack(pady=(0, 25))
             
