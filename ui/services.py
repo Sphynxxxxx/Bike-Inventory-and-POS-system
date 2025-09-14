@@ -1321,7 +1321,6 @@ class ServicesModule:
             # Focus on status combo
             status_combo.focus_set()
             
-            # Update scroll region after everything is packed
             dialog.update_idletasks()
             canvas.configure(scrollregion=canvas.bbox("all"))
             
@@ -1422,7 +1421,6 @@ class ServicesModule:
                 
                 def configure_canvas(event):
                     canvas.configure(scrollregion=canvas.bbox("all"))
-                    # Ensure the scrollable_frame fills the canvas width properly
                     canvas_width = event.width
                     canvas.itemconfig(canvas_window, width=canvas_width)
                 
@@ -1578,7 +1576,7 @@ class ServicesModule:
                     'Completed': '#10b981',
                     'Cancelled': '#ef4444'
                 }
-                status_color = status_colors.get(booking[10], '#6b7280')  # status
+                status_color = status_colors.get(booking[10], '#6b7280')  
                 
                 tk.Label(status_frame, text="●", font=('Arial', 14), 
                         fg=status_color, bg='white').pack(side='left', padx=(10, 5))
@@ -1598,7 +1596,7 @@ class ServicesModule:
                     'Partially Paid': '#f59e0b',
                     'Refunded': '#6b7280'
                 }
-                payment_color = payment_colors.get(booking[12], '#6b7280')  # payment_status
+                payment_color = payment_colors.get(booking[12], '#6b7280')  
                 
                 tk.Label(payment_frame, text="●", font=('Arial', 14), 
                         fg=payment_color, bg='white').pack(side='left', padx=(10, 5))

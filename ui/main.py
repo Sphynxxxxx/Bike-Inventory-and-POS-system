@@ -65,7 +65,6 @@ class BikeShopInventorySystem:
             )
         ''')
 
-        # Create sales table with all required fields including customer_address
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS sales (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,12 +81,10 @@ class BikeShopInventorySystem:
             )
         ''')
 
-        # Check if customer_address column exists, add it if needed
         try:
             self.cursor.execute("PRAGMA table_info(sales)")
             columns = [column[1] for column in self.cursor.fetchall()]
             
-            # Add customer_address column if it doesn't exist
             if 'customer_address' not in columns:
                 self.cursor.execute("ALTER TABLE sales ADD COLUMN customer_address TEXT DEFAULT ''")
                 self.conn.commit()
@@ -113,7 +110,6 @@ class BikeShopInventorySystem:
             )
         ''')
 
-        # Create stock_movements table for better tracking
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS stock_movements (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -332,7 +328,6 @@ class BikeShopInventorySystem:
             print(f"Error getting recent sales: {e}")
             return []
 
-    # Product management methods (for inventory module)
     def add_product(self):
         """Delegate to inventory module"""
         if hasattr(self, 'inventory_module'):

@@ -97,7 +97,7 @@ class InventoryModule:
             return
             
         item = self.inventory_tree.item(selection[0])
-        product_id = item['values'][0]  # Internal database ID
+        product_id = item['values'][0] 
         product_name = item['values'][1]
         current_stock = item['values'][3]
         product_code = item['values'][5]  
@@ -268,7 +268,7 @@ class InventoryModule:
                     float(dialog.result['price']), 
                     int(dialog.result['stock']),
                     dialog.result['category'], 
-                    product_id_input))  # Use the validated product_id
+                    product_id_input))  
                 
                 # Record initial stock addition
                 if int(dialog.result['stock']) > 0:
@@ -333,7 +333,6 @@ class InventoryModule:
                 # Format the product_id to ensure consistency
                 formatted_product_id = str(dialog.result['product_id']).strip()
                 
-                # Check if product_id is being changed and if the new one already exists
                 if formatted_product_id != original_product_id:
                     self.main_app.cursor.execute('SELECT COUNT(*) FROM products WHERE product_id = ?', 
                                     (formatted_product_id,))
@@ -406,7 +405,7 @@ class InventoryModule:
                 self.main_app.cursor.execute('DELETE FROM products WHERE id = ?', (product_id,))
                 self.main_app.conn.commit()
                 
-                # Refresh display (respects current search)
+                # Refresh display 
                 if self.search_var and self.search_var.get().strip():
                     self.search_products(self.search_var.get().strip())
                 else:

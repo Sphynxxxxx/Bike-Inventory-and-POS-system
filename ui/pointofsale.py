@@ -293,8 +293,8 @@ class PointOfSaleModule:
             
             # Apply search filter
             search_match = (not search_term or 
-                          search_term in product[1].lower() or  # name
-                          search_term in product[0].lower())    # product_id
+                          search_term in product[1].lower() or  
+                          search_term in product[0].lower())    
             
             # Include product if both filters match
             if category_match and search_match:
@@ -399,7 +399,6 @@ class PointOfSaleModule:
             messagebox.showerror("Error", f"Failed to load products: {str(e)}")
 
 
-    # And update display_products to show the correct product_id:
 
     def display_products(self, products):
         """Display products in the treeview"""
@@ -409,13 +408,11 @@ class PointOfSaleModule:
         
         # Add products to treeview
         for product in products:
-            # Handle products with or without category
             if len(product) > 4:
                 category = product[4] if product[4] else 'General'
             else:
                 category = 'General'
                 
-            # Use product_id (index 5) for display instead of internal id
             display_id = product[5] if len(product) > 5 and product[5] else f"ID_{product[0]}"
                 
             self.product_tree.insert('', 'end', values=(
