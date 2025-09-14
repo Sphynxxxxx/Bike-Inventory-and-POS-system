@@ -24,8 +24,8 @@ class StatisticsModule:
         ttk.Label(header_frame, text="Statistics & Analytics", style='PageTitle.TLabel').pack(side='left')
         
         # Refresh button
-        ttk.Button(header_frame, text="🔄 Refresh", command=self.refresh_statistics,
-                  style='Secondary.TButton').pack(side='right')
+        #ttk.Button(header_frame, text="🔄 Refresh", command=self.refresh_statistics,
+                  #style='Secondary.TButton').pack(side='right')
         
         # Filter controls
         filter_frame = ttk.Frame(self.frame, style='Content.TFrame')
