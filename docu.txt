@@ -1,13 +1,2 @@
 NEED TO DO
-customer info add an address
 change the theme
-Add search box in inventory (name and product id key)
-Add stock button that will fucos on stock only that no need edit button
-Remove refresh button
-Apply arrow down function while entering data
-Remove services word, make it 1 word 
-Remove the description in services
-Disable the "duration" btn in Services while clicking the category and automatic changing the duration
-Change the word dashboard into sales dashboard and show product a bar graph about how many products left
-Delete booking in Services
-Remove Stock quantity on edit product btn/disable 

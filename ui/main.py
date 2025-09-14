@@ -2,8 +2,6 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import sqlite3
 from datetime import datetime, timedelta
-
-# Import the modular components
 from dashboard import DashboardModule
 from pointofsale import PointOfSaleModule
 from statistics import StatisticsModule
@@ -42,7 +40,6 @@ class BikeShopInventorySystem:
         self.inventory_module = InventoryModule(self.content_frame, self)
         self.services_module = ServicesModule(self.content_frame, self)
         
-        # Keep references to frames for compatibility
         self.sales_entry_frame = None
         self.dashboard_frame = None
         self.statistics_frame = None
@@ -51,7 +48,7 @@ class BikeShopInventorySystem:
         self.services_frame = None
 
     def init_database(self):
-        """Initialize SQLite database and create tables - UPDATED with customer name support"""
+        """Initialize SQLite database and create tables - UPDATED with customer name and address support"""
         self.conn = sqlite3.connect('bike_shop_inventory.db')
         self.cursor = self.conn.cursor()
 
@@ -68,7 +65,7 @@ class BikeShopInventorySystem:
             )
         ''')
 
-        # Create sales table with all required fields
+        # Create sales table with all required fields including customer_address
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS sales (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,6 +74,7 @@ class BikeShopInventorySystem:
                 product_name TEXT,
                 product_category TEXT,
                 customer_name TEXT,
+                customer_address TEXT,
                 quantity INTEGER,
                 price REAL,
                 total REAL,
@@ -91,13 +89,18 @@ class BikeShopInventorySystem:
             
             # Add customer_address column if it doesn't exist
             if 'customer_address' not in columns:
-                self.cursor.execute("ALTER TABLE sales ADD COLUMN customer_address TEXT")
+                self.cursor.execute("ALTER TABLE sales ADD COLUMN customer_address TEXT DEFAULT ''")
                 self.conn.commit()
                 print("Added customer_address column to sales table")
+                
+            # Add customer_name column if it doesn't exist
+            if 'customer_name' not in columns:
+                self.cursor.execute("ALTER TABLE sales ADD COLUMN customer_name TEXT DEFAULT ''")
+                self.conn.commit()
+                print("Added customer_name column to sales table")
+                
         except Exception as e:
             print(f"Error checking/adding columns: {str(e)}")
-            self.cursor.execute('ALTER TABLE sales ADD COLUMN customer_name TEXT')
-            print("Added customer_name column to sales table")
 
         # Create transactions table
         self.cursor.execute('''
@@ -126,7 +129,7 @@ class BikeShopInventorySystem:
         ''')
 
         self.conn.commit()
-        print("Database initialized successfully with customer name support")
+        print("Database initialized successfully with customer name and address support")
 
     def create_main_interface(self):
         """Create the main interface with sidebar and content area"""
@@ -314,10 +317,12 @@ class BikeShopInventorySystem:
         return self.cursor.fetchall()
 
     def get_recent_sales(self, limit=10):
-        """Get recent sales for display - UPDATED to include customer name"""
+        """Get recent sales for display - UPDATED to include customer name and address"""
         try:
             self.cursor.execute('''
-                SELECT sale_date, product_name, product_id, customer_name, quantity, total
+                SELECT sale_date, product_name, product_id, customer_name, 
+                       COALESCE(customer_address, 'N/A') as customer_address, 
+                       quantity, total
                 FROM sales 
                 ORDER BY sale_date DESC 
                 LIMIT ?
@@ -412,7 +417,7 @@ class BikeShopInventorySystem:
         return True, "Validation successful"
 
     def record_sale(self, cart_items, payment_method='Cash'):
-        """Record a sale transaction and update inventory - UPDATED with customer name support"""
+        """Record a sale transaction and update inventory - UPDATED with customer address support"""
         try:
             print(f"Recording sale with {len(cart_items)} items")
             
@@ -430,7 +435,6 @@ class BikeShopInventorySystem:
             
             # Validate and process each item
             for item in cart_items:
-                # Ensure all required fields are present including customer_name
                 required_fields = ['product_id', 'product_name', 'customer_name', 'unit_price', 'quantity']
                 if not all(field in item for field in required_fields):
                     self.cursor.execute('ROLLBACK')
@@ -446,14 +450,17 @@ class BikeShopInventorySystem:
                 item_total = item['quantity'] * item['unit_price']
                 total_amount += item_total
                 
-                # Insert into sales table - UPDATED with customer_name
+                # Get customer address (might be empty)
+                customer_address = item.get('customer_address', '')
+                
+                # Insert into sales table
                 self.cursor.execute('''
                     INSERT INTO sales (transaction_id, product_id, product_name, product_category, 
-                                    customer_name, quantity, price, total, sale_date)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    customer_name, customer_address, quantity, price, total, sale_date)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (transaction_id, item['product_id'], item['product_name'], 
-                    item.get('category', 'N/A'), item['customer_name'], item['quantity'], 
-                    item['unit_price'], item_total, sale_date))
+                    item.get('category', 'N/A'), item['customer_name'], customer_address,
+                    item['quantity'], item['unit_price'], item_total, sale_date))
                 
                 # Update product stock
                 self.cursor.execute('''
@@ -479,14 +486,15 @@ class BikeShopInventorySystem:
                     self.cursor.execute('ROLLBACK')
                     return False, f"Stock would become negative for {item['product_name']}"
                 
-                # Record stock movement - UPDATED with customer info in notes
+                # Record stock movement 
+                address_note = f" (Address: {customer_address})" if customer_address else ""
                 self.cursor.execute('''
                     INSERT INTO stock_movements (product_id, product_name, movement_type, quantity, 
                                             reference_id, reason, notes)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 ''', (item['product_id'], item['product_name'], 'OUT', 
                     item['quantity'], transaction_id, 'SALE', 
-                    f'Sold {item["quantity"]} units to {item["customer_name"]}. New stock: {updated_stock[0]}'))
+                    f'Sold {item["quantity"]} units to {item["customer_name"]}{address_note}. New stock: {updated_stock[0]}'))
             
             # Insert into transactions table
             self.cursor.execute('''

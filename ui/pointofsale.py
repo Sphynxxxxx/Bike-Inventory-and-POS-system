@@ -9,7 +9,7 @@ class PointOfSaleModule:
         self.frame = None
         self.cart_items = []
         self.current_customer = ""
-        self.all_products = []  # Store all products for filtering
+        self.all_products = [] 
         
     def create_interface(self):
         """Create the Point of Sale interface"""
@@ -227,22 +227,18 @@ class PointOfSaleModule:
     def load_categories(self):
         """Load unique categories for the filter dropdown"""
         try:
-            # Get unique categories from products
             categories = set()
             for product in self.all_products:
-                # Assuming category is at index 4, adjust if needed
                 if len(product) > 4:
                     categories.add(product[4])
                 else:
-                    categories.add('General')  # Default category
+                    categories.add('General')  
             
-            # Update category dropdown
             category_list = ['All Categories'] + sorted(list(categories))
             self.category_combo['values'] = category_list
             
         except Exception as e:
             print(f"Error loading categories: {e}")
-            # Set default if error
             self.category_combo['values'] = ['All Categories', 'General']
     
     def display_products(self, products):
@@ -253,7 +249,6 @@ class PointOfSaleModule:
         
         # Add products to treeview
         for product in products:
-            # Handle products with or without category
             if len(product) > 4:
                 category = product[4]
             else:
@@ -267,7 +262,6 @@ class PointOfSaleModule:
                 product[3]   # stock
             ))
         
-        # Update product count
         self.product_count_var.set(f"Products: {len(products)}")
     
     def filter_by_category(self, event=None):
@@ -336,8 +330,7 @@ class PointOfSaleModule:
         item = self.product_tree.item(selection[0])
         product_data = item['values']
         
-        # FIX: Get the actual product data from database using the internal ID
-        internal_id = product_data[0]  # This is the database internal ID
+        internal_id = product_data[0]  
         
         # Get the complete product info from database
         try:
@@ -348,8 +341,7 @@ class PointOfSaleModule:
                 messagebox.showerror("Error", "Product not found in database!")
                 return
                 
-            # Use the correct product_id (index 5) instead of internal id (index 0)
-            product_id = product[5]  # This is the actual product_id field
+            product_id = product[5]  
             product_name = product[1]
             price = float(product[2])
             stock = int(product[3])
@@ -365,8 +357,7 @@ class PointOfSaleModule:
         
         # Check if product already in cart
         for i, cart_item in enumerate(self.cart_items):
-            if cart_item['product_id'] == product_id:  # Now using correct product_id
-                # Increase quantity if stock allows
+            if cart_item['product_id'] == product_id: 
                 current_qty = cart_item['quantity']
                 if current_qty < stock:
                     self.cart_items[i]['quantity'] += 1
@@ -378,7 +369,7 @@ class PointOfSaleModule:
         
         # Add new item to cart
         cart_item = {
-            'product_id': product_id,  # Now using correct product_id
+            'product_id': product_id,  
             'product_name': product_name,
             'customer_name': self.customer_var.get().strip(),
             'unit_price': price,
@@ -395,12 +386,10 @@ class PointOfSaleModule:
         self.search_entry.focus()
 
 
-    # Also fix the load_products method to ensure proper data structure:
 
     def load_products(self):
         """Load all products into memory and display"""
         try:
-            # Get all products and store them - make sure to get product_id field
             self.main_app.cursor.execute('SELECT id, name, price, stock, category, product_id FROM products ORDER BY name')
             self.all_products = self.main_app.cursor.fetchall()
             self.display_products(self.all_products)
@@ -430,7 +419,7 @@ class PointOfSaleModule:
             display_id = product[5] if len(product) > 5 and product[5] else f"ID_{product[0]}"
                 
             self.product_tree.insert('', 'end', values=(
-                product[0],  # Keep internal id for selection (hidden from user)
+                product[0],  
                 product[1],  # name
                 category,    # category
                 f"₱{product[2]:.2f}",  # price
@@ -526,10 +515,13 @@ class PointOfSaleModule:
             self.customer_entry.focus()
             return
         
-        # Update customer name in all cart items
+        # Update customer name AND ADDRESS in all cart items
         customer_name = self.customer_var.get().strip()
+        customer_address = self.address_var.get().strip()  
+        
         for item in self.cart_items:
             item['customer_name'] = customer_name
+            item['customer_address'] = customer_address  
         
         # Validate transaction
         is_valid, message = self.main_app.validate_transaction(self.cart_items)
@@ -540,11 +532,9 @@ class PointOfSaleModule:
         # Show checkout confirmation with detailed items list
         total = sum(item['quantity'] * item['unit_price'] for item in self.cart_items)
         
-        # Get customer address
-        customer_address = self.address_var.get().strip()
+        # Get customer address for display
         address_display = f"Address: {customer_address}\n" if customer_address else ""
         
-        # Build detailed items list for confirmation
         items_detail = "Items:\n"
         for item in self.cart_items:
             item_total = item['quantity'] * item['unit_price']
@@ -574,12 +564,12 @@ class PointOfSaleModule:
                 # Clear cart and reset customer
                 self.cart_items.clear()
                 self.customer_var.set("")
-                self.address_var.set("")
+                self.address_var.set("")  
                 self.refresh_cart()
-                self.load_products()  # Refresh to show updated stock
+                self.load_products()  
                 self.customer_entry.focus()
                 
-                # Print receipt option - use the copy of cart items
+                # Print receipt option 
                 if messagebox.askyesno("Print Receipt", "Would you like to print a receipt?"):
                     self.print_receipt(result, customer_name, customer_address, total, cart_items_copy)
                     
@@ -660,7 +650,6 @@ class PointOfSaleModule:
         items_frame.pack(fill='x', pady=(0, 10))
         
         total_items = 0
-        # FIX: Use cart_items parameter instead of self.cart_items
         for i, item in enumerate(cart_items, 1):
             item_total = item['quantity'] * item['unit_price']
             total_items += item['quantity']
@@ -698,7 +687,6 @@ class PointOfSaleModule:
         summary_frame = ttk.Frame(receipt_frame)
         summary_frame.pack(fill='x', pady=(0, 15))
         
-        # FIX: Use cart_items parameter instead of self.cart_items
         ttk.Label(summary_frame, text=f"Total Items: {total_items}", font=('Arial', 11)).pack(anchor='w')
         ttk.Label(summary_frame, text=f"Total Products: {len(cart_items)}", font=('Arial', 11)).pack(anchor='w', pady=(2, 0))
         
@@ -726,7 +714,7 @@ class PointOfSaleModule:
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
         
-        # Button frame at bottom (not scrollable)
+        # Button frame at bottom
         button_frame = ttk.Frame(receipt_window)
         button_frame.pack(fill='x', padx=10, pady=(0, 10))
         
@@ -755,7 +743,7 @@ class PointOfSaleModule:
         """Handle actual printing of receipt"""
         try:
             # This would integrate with your system's printing functionality
-            messagebox.showinfo("Print", "Receipt sent to printer!\n(Print functionality would be implemented here)")
+            #messagebox.showinfo("Print", "Receipt sent to printer!\n(Print functionality would be implemented here)")
             receipt_window.destroy()
         except Exception as e:
             messagebox.showerror("Print Error", f"Failed to print receipt: {str(e)}")

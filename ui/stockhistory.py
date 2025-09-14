@@ -10,7 +10,7 @@ class StockHistoryModule:
         self.frame = None
         
     def create_interface(self):
-        """Create the stock history interface - UPDATED to show customer names and addresses"""
+        """Create the stock history interface - Shows only sales transactions"""
         self.frame = ttk.Frame(self.parent, style='Content.TFrame')
         
         # Header
@@ -45,11 +45,11 @@ class StockHistoryModule:
         category_filter.pack(side='left', padx=(0, 15))
         category_filter.bind('<<ComboboxSelected>>', self.filter_stock_history)
         
-        # Movement type filter
+        # Movement type filter 
         ttk.Label(filters_frame, text="Movement Type:", style='FieldLabel.TLabel').pack(side='left', padx=(0, 5))
-        self.movement_type_var = tk.StringVar(value='All Movements')
+        self.movement_type_var = tk.StringVar(value='All Sales')
         movement_filter = ttk.Combobox(filters_frame, textvariable=self.movement_type_var,
-                                     values=['All Movements', 'Sales (Out)', 'Stock Added (In)', 'Returns (In)'],
+                                     values=['All Sales', 'Regular Sales', 'Returns'],
                                      state='readonly', style='Modern.TCombobox', width=15)
         movement_filter.pack(side='left', padx=(0, 15))
         movement_filter.bind('<<ComboboxSelected>>', self.filter_stock_history)
@@ -63,14 +63,14 @@ class StockHistoryModule:
                   style='Danger.TButton').pack(side='right', padx=(0, 10))
         
         # Refresh button
-        ttk.Button(buttons_frame, text="Refresh", command=self.refresh_stock_history,
-                  style='Secondary.TButton').pack(side='right', padx=(0, 10))
+        #ttk.Button(buttons_frame, text="Refresh", command=self.refresh_stock_history,
+        #          style='Secondary.TButton').pack(side='right', padx=(0, 10))
         
         # Stock history table
         table_frame = ttk.Frame(self.frame, style='Content.TFrame')
         table_frame.pack(fill='both', expand=True, padx=30, pady=20)
         
-        # Create treeview for stock history - UPDATED to include Customer Name and Address
+        # Create treeview for stock history 
         columns = ('ID', 'Date', 'Time', 'Transaction ID', 'Product Name', 'Product ID', 
                   'Category', 'Customer Name', 'Customer Address', 'Movement Type', 'Quantity', 'Unit Price', 'Total Amount', 'Current Stock')
         self.stock_history_tree = ttk.Treeview(table_frame, columns=columns, show='headings', 
@@ -159,18 +159,18 @@ class StockHistoryModule:
             item = self.stock_history_tree.item(item_id)
             values = item['values']
             selected_items.append({
-                'sales_id': values[0],  # ID column (hidden)
+                'sales_id': values[0],  
                 'date': values[1],
                 'transaction_id': values[3],
                 'product_name': values[4],
                 'customer_name': values[7],
-                'movement_type': values[9]  # Fixed index for movement type
+                'movement_type': values[9]
             })
         
         # Confirmation dialog
         if len(selected_items) == 1:
             item = selected_items[0]
-            message = (f"Are you sure you want to delete this stock history record?\n\n"
+            message = (f"Are you sure you want to delete this sale record?\n\n"
                       f"Date: {item['date']}\n"
                       f"Transaction ID: {item['transaction_id']}\n"
                       f"Product: {item['product_name']}\n"
@@ -178,7 +178,7 @@ class StockHistoryModule:
                       f"Type: {item['movement_type']}\n\n"
                       f"⚠️ Warning: This action cannot be undone!")
         else:
-            message = (f"Are you sure you want to delete {len(selected_items)} stock history records?\n\n"
+            message = (f"Are you sure you want to delete {len(selected_items)} sale records?\n\n"
                       f"⚠️ Warning: This action cannot be undone!")
         
         if not messagebox.askyesno("Confirm Delete", message):
@@ -193,54 +193,40 @@ class StockHistoryModule:
                 transaction_id = item['transaction_id']
                 
                 try:
-                    # Check if this is a sales record (not an initial stock record)
-                    if transaction_id != 'INITIAL':
-                        # Get the sale details before deletion to potentially restore stock
-                        self.main_app.cursor.execute('''
-                            SELECT product_id, quantity, product_name 
-                            FROM sales 
-                            WHERE id = ?
-                        ''', (sales_id,))
-                        sale_details = self.main_app.cursor.fetchone()
+                    self.main_app.cursor.execute('''
+                        SELECT product_id, quantity, product_name 
+                        FROM sales 
+                        WHERE id = ?
+                    ''', (sales_id,))
+                    sale_details = self.main_app.cursor.fetchone()
+                    
+                    if sale_details:
+                        product_id, quantity, product_name = sale_details
                         
-                        if sale_details:
-                            product_id, quantity, product_name = sale_details
+                        restore_stock = messagebox.askyesno(
+                            "Restore Stock", 
+                            f"Do you want to restore {quantity} units of '{product_name}' back to inventory?\n\n"
+                            f"This will add {quantity} units to the current stock level."
+                        )
+                        
+                        # Delete the sales record
+                        self.main_app.cursor.execute('DELETE FROM sales WHERE id = ?', (sales_id,))
+                        
+                        if restore_stock:
+                            # Add stock back to the product
+                            self.main_app.cursor.execute('''
+                                UPDATE products 
+                                SET stock = stock + ? 
+                                WHERE product_id = ?
+                            ''', (quantity, product_id))
                             
-                            # Ask if user wants to restore stock to inventory
-                            restore_stock = messagebox.askyesno(
-                                "Restore Stock", 
-                                f"Do you want to restore {quantity} units of '{product_name}' back to inventory?\n\n"
-                                f"This will add {quantity} units to the current stock level."
-                            )
-                            
-                            # Delete the sales record
-                            self.main_app.cursor.execute('DELETE FROM sales WHERE id = ?', (sales_id,))
-                            
-                            if restore_stock:
-                                # Add stock back to the product
-                                self.main_app.cursor.execute('''
-                                    UPDATE products 
-                                    SET stock = stock + ? 
-                                    WHERE product_id = ?
-                                ''', (quantity, product_id))
-                                
-                                # Record the stock restoration in stock_movements table
-                                self.main_app.cursor.execute('''
-                                    INSERT INTO stock_movements (product_id, product_name, movement_type, quantity, 
-                                                               reference_id, reason, notes)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                                ''', (product_id, product_name, 'IN', quantity, 
-                                      f"RESTORE_{sales_id}", 'SALE_DELETION', 
-                                      f'Stock restored due to deletion of sale record {transaction_id}'))
-                        else:
-                            # Sales record not found, just continue
-                            pass
-                    else:
-                        # This is an initial stock record, just inform user
-                        messagebox.showinfo("Info", 
-                                          f"Cannot delete initial stock record for {item['product_name']}. "
-                                          f"These records are created when products are first added.")
-                        continue
+                            self.main_app.cursor.execute('''
+                                INSERT INTO stock_movements (product_id, product_name, movement_type, quantity, 
+                                                           reference_id, reason, notes)
+                                VALUES (?, ?, ?, ?, ?, ?, ?)
+                            ''', (product_id, product_name, 'IN', quantity, 
+                                  f"RESTORE_{sales_id}", 'SALE_DELETION', 
+                                  f'Stock restored due to deletion of sale record {transaction_id}'))
                     
                     deleted_count += 1
                     
@@ -259,7 +245,7 @@ class StockHistoryModule:
                               "\n".join(failed_deletions))
                     messagebox.showwarning("Partial Success", message)
                 else:
-                    messagebox.showinfo("Success", f"Successfully deleted {deleted_count} stock history record(s)!")
+                    messagebox.showinfo("Success", f"Successfully deleted {deleted_count} sale record(s)!")
             else:
                 if failed_deletions:
                     message = "Failed to delete records:\n" + "\n".join(failed_deletions)
@@ -270,7 +256,6 @@ class StockHistoryModule:
             # Refresh the display
             self.refresh_stock_history()
             
-            # Refresh inventory if it's visible (in case stock was restored)
             if hasattr(self.main_app, 'inventory_frame') and self.main_app.inventory_frame and self.main_app.inventory_frame.winfo_viewable():
                 self.main_app.refresh_products()
                 
@@ -282,7 +267,7 @@ class StockHistoryModule:
             messagebox.showerror("Error", f"Unexpected error occurred: {str(e)}")
 
     def refresh_stock_history(self):
-        """Refresh the stock history display - UPDATED to exclude initial stock records"""
+        """Refresh the stock history display - Shows only sales transactions"""
         if not hasattr(self, 'stock_history_tree') or not self.stock_history_tree.winfo_exists():
             return
             
@@ -294,9 +279,8 @@ class StockHistoryModule:
             # Build query based on filters
             date_filter = self.date_filter_var.get() if hasattr(self, 'date_filter_var') else 'All Time'
             category_filter = self.stock_category_var.get() if hasattr(self, 'stock_category_var') else 'All Categories'
-            movement_filter = self.movement_type_var.get() if hasattr(self, 'movement_type_var') else 'All Movements'
+            movement_filter = self.movement_type_var.get() if hasattr(self, 'movement_type_var') else 'All Sales'
             
-            # Base query for sales (stock out) - Shows actual customer transactions
             sales_query = '''
                 SELECT 
                     s.id,
@@ -318,96 +302,33 @@ class StockHistoryModule:
                 WHERE 1=1
             '''
             
-            # Query for manual stock additions (exclude INITIAL stock)
-            stock_add_query = '''
-                SELECT 
-                    sm.id,
-                    DATE(sm.movement_date) as movement_date,
-                    TIME(sm.movement_date) as movement_time,
-                    sm.reference_id as transaction_id,
-                    sm.product_name,
-                    sm.product_id,
-                    p.category as product_category,
-                    'System' as customer_name,
-                    'N/A' as customer_address,
-                    CASE 
-                        WHEN sm.movement_type = 'IN' THEN 'Stock Added (In)'
-                        ELSE sm.movement_type
-                    END as movement_type,
-                    sm.quantity,
-                    p.price as unit_price,
-                    (sm.quantity * p.price) as total_amount,
-                    p.stock as current_stock
-                FROM stock_movements sm
-                LEFT JOIN products p ON sm.product_id = p.product_id
-                WHERE sm.movement_type IN ('IN', 'Stock Added') 
-                AND sm.reason != 'INITIAL_STOCK'
-                AND sm.reference_id != 'INITIAL'
-            '''
-            
-            # REMOVED: initial_stock_query - This eliminates the INITIAL entries
-            
-            queries = []
+            # Add date filter
             params = []
+            if date_filter == 'Today':
+                sales_query += " AND DATE(s.sale_date) = DATE('now')"
+            elif date_filter == 'Last 7 Days':
+                sales_query += " AND DATE(s.sale_date) >= DATE('now', '-7 days')"
+            elif date_filter == 'Last 30 Days':
+                sales_query += " AND DATE(s.sale_date) >= DATE('now', '-30 days')"
+            elif date_filter == 'Last 90 Days':
+                sales_query += " AND DATE(s.sale_date) >= DATE('now', '-90 days')"
             
-            # Determine which queries to use based on movement filter
-            if movement_filter == 'All Movements':
-                queries = [sales_query, stock_add_query]  # Only sales and manual stock additions
-            elif movement_filter == 'Sales (Out)':
-                queries = [sales_query]
-            elif movement_filter == 'Stock Added (In)':
-                queries = [stock_add_query]  # Only manual additions, no initial stock
-            elif movement_filter == 'Returns (In)':
-                queries = [stock_add_query.replace("IN ('IN', 'Stock Added')", "= 'IN'")]
+            # Add category filter
+            if category_filter != 'All Categories':
+                sales_query += " AND s.product_category = ?"
+                params.append(category_filter)
             
-            # Build final query with UNION ALL
-            final_queries = []
-            for i, query in enumerate(queries):
-                # Add date filter to each query
-                date_condition = ""
-                if date_filter == 'Today':
-                    if "sales" in query.lower():
-                        date_condition = " AND DATE(s.sale_date) = DATE('now')"
-                    elif "stock_movements" in query.lower():
-                        date_condition = " AND DATE(sm.movement_date) = DATE('now')"
-                elif date_filter == 'Last 7 Days':
-                    if "sales" in query.lower():
-                        date_condition = " AND DATE(s.sale_date) >= DATE('now', '-7 days')"
-                    elif "stock_movements" in query.lower():
-                        date_condition = " AND DATE(sm.movement_date) >= DATE('now', '-7 days')"
-                elif date_filter == 'Last 30 Days':
-                    if "sales" in query.lower():
-                        date_condition = " AND DATE(s.sale_date) >= DATE('now', '-30 days')"
-                    elif "stock_movements" in query.lower():
-                        date_condition = " AND DATE(sm.movement_date) >= DATE('now', '-30 days')"
-                elif date_filter == 'Last 90 Days':
-                    if "sales" in query.lower():
-                        date_condition = " AND DATE(s.sale_date) >= DATE('now', '-90 days')"
-                    elif "stock_movements" in query.lower():
-                        date_condition = " AND DATE(sm.movement_date) >= DATE('now', '-90 days')"
-                
-                query += date_condition
-                
-                # Add category filter
-                if category_filter != 'All Categories':
-                    if "sales" in query.lower():
-                        query += " AND s.product_category = ?"
-                    elif "stock_movements" in query.lower():
-                        query += " AND p.category = ?"
-                    params.append(category_filter)
-                
-                final_queries.append(query)
+            if movement_filter == 'Returns':
+                sales_query += " AND s.quantity < 0" 
+            elif movement_filter == 'Regular Sales':
+                sales_query += " AND s.quantity > 0"  
             
-            # Build the final UNION ALL query (only if we have queries)
-            if final_queries:
-                final_query = " UNION ALL ".join(final_queries)
-                final_query += " ORDER BY sale_date DESC, movement_date DESC, sale_time DESC, movement_time DESC"
-                
-                # Execute query
-                self.main_app.cursor.execute(final_query, params)
-                history_data = self.main_app.cursor.fetchall()
-            else:
-                history_data = []
+            # Order by date descending
+            sales_query += " ORDER BY s.sale_date DESC, s.id DESC"
+            
+            # Execute query
+            self.main_app.cursor.execute(sales_query, params)
+            history_data = self.main_app.cursor.fetchall()
             
             # Insert data into treeview
             total_transactions = 0
@@ -431,29 +352,27 @@ class StockHistoryModule:
                 total_amount = float(record[12]) if record[12] else 0.0
                 current_stock = int(record[13]) if record[13] else 0
                 
-                # Insert into treeview (ID is first but hidden)
                 self.stock_history_tree.insert('', 'end', values=(
-                    record_id,  # Hidden ID for deletion
+                    record_id,  
                     date_str,
                     time_str,
                     transaction_id,
                     product_name,
                     product_id,
                     category,
-                    customer_name,  # Customer name column
-                    customer_address,  # Customer address column
+                    customer_name,
+                    customer_address,
                     movement_type,
-                    f"{quantity:,}",  # Format quantity with commas
+                    f"{quantity:,}", 
                     f"₱{unit_price:.2f}",
                     f"₱{total_amount:.2f}",
                     f"{current_stock:,}"
                 ))
                 
-                # Update summary statistics (only count sales for revenue)
+                # Update summary statistics
                 total_transactions += 1
-                if 'Sale (Out)' in movement_type:
-                    total_items_sold += quantity
-                    total_revenue += total_amount
+                total_items_sold += abs(quantity)  
+                total_revenue += total_amount
             
             # Update summary display
             if hasattr(self, 'total_transactions_var'):
@@ -461,7 +380,7 @@ class StockHistoryModule:
                 self.total_items_sold_var.set(f"{total_items_sold:,}")
                 self.total_revenue_var.set(f"₱{total_revenue:,.2f}")
                 
-            print(f"Loaded {len(history_data)} stock movement records (excluding initial stock)")
+            print(f"Loaded {len(history_data)} sales records (stock additions excluded)")
             
         except Exception as e:
             print(f"Error refreshing stock history: {e}")
@@ -472,20 +391,6 @@ class StockHistoryModule:
     def filter_stock_history(self, event=None):
         """Filter stock history based on selected criteria"""
         self.refresh_stock_history()
-
-    # Add this to your database initialization code if needed
-    def check_and_add_customer_address_column(self):
-        """Check if customer_address column exists in sales table, add it if not"""
-        try:
-            self.cursor.execute("PRAGMA table_info(sales)")
-            columns = [column[1] for column in self.cursor.fetchall()]
-            
-            if 'customer_address' not in columns:
-                self.cursor.execute("ALTER TABLE sales ADD COLUMN customer_address TEXT")
-                self.conn.commit()
-                print("Added customer_address column to sales table")
-        except Exception as e:
-            print(f"Error checking/adding customer_address column: {e}")
 
     def refresh(self):
         """Refresh the stock history interface"""

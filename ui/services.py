@@ -9,7 +9,7 @@ class ServiceDialog:
         try:
             self.dialog = tk.Toplevel(parent)
             self.dialog.title(title)
-            self.dialog.geometry("500x500")
+            self.dialog.geometry("500x400")
             self.dialog.transient(parent)
             self.dialog.grab_set()
             self.dialog.configure(bg='#ffffff')
@@ -17,8 +17,8 @@ class ServiceDialog:
             # Center the dialog
             self.dialog.update_idletasks()
             x = (self.dialog.winfo_screenwidth() // 2) - (500 // 2)
-            y = (self.dialog.winfo_screenheight() // 2) - (500 // 2)
-            self.dialog.geometry(f"500x500+{x}+{y}")
+            y = (self.dialog.winfo_screenheight() // 2) - (400 // 2)
+            self.dialog.geometry(f"500x400+{x}+{y}")
             
             self.create_widgets(service_data)
             
@@ -43,7 +43,6 @@ class ServiceDialog:
             # Service Name
             ttk.Label(main_frame, text="Service Name*:", font=('Arial', 10, 'bold')).grid(
                 row=1, column=0, sticky='w', pady=8)
-            # service_data structure: (id, name, description, price, duration, category, service_id, is_active, date_added)
             self.name_var = tk.StringVar(value=service_data[1] if service_data else "")
             self.name_entry = ttk.Entry(main_frame, textvariable=self.name_var, width=40)
             self.name_entry.grid(row=1, column=1, pady=8, sticky='ew')
@@ -71,14 +70,10 @@ class ServiceDialog:
             self.price_entry = ttk.Entry(main_frame, textvariable=self.price_var, width=40)
             self.price_entry.grid(row=4, column=1, pady=8, sticky='ew')
 
-            # Duration
+            # Duration - FIXED: Use correct index
             ttk.Label(main_frame, text="Duration:", font=('Arial', 10, 'bold')).grid(
                 row=5, column=0, sticky='w', pady=8)
-            # Fix: Get duration from correct index in service_data
-            duration_value = service_data[5] if service_data and len(service_data) > 5 else "30 minutes"
-            if service_data:
-                # service_data structure: (id, name, description, price, duration, category, service_id, is_active, date_added)
-                duration_value = service_data[5] if len(service_data) > 5 else "30 minutes"
+            duration_value = service_data[4] if service_data and len(service_data) > 4 else "30 minutes"
             self.duration_var = tk.StringVar(value=duration_value)
             self.duration_entry = ttk.Entry(main_frame, textvariable=self.duration_var, width=40)
             self.duration_entry.grid(row=5, column=1, pady=8, sticky='ew')
@@ -93,35 +88,15 @@ class ServiceDialog:
                 self.status_combo['values'] = ('Active', 'Inactive')
                 self.status_combo.state(['readonly'])
                 self.status_combo.grid(row=6, column=1, pady=8, sticky='ew')
-                description_row = 7
             else:
                 self.status_var = tk.StringVar(value="Active")  # Default for new services
-                description_row = 6
-
-            # Description
-            ttk.Label(main_frame, text="Description:", font=('Arial', 10, 'bold')).grid(
-                row=description_row, column=0, sticky='nw', pady=8)
-            
-            description_frame = ttk.Frame(main_frame)
-            description_frame.grid(row=description_row, column=1, pady=8, sticky='ew')
-            
-            self.description_text = tk.Text(description_frame, height=6, width=40, wrap=tk.WORD)
-            description_scrollbar = ttk.Scrollbar(description_frame, orient='vertical', command=self.description_text.yview)
-            self.description_text.configure(yscrollcommand=description_scrollbar.set)
-            
-            # service_data[2] is description
-            if service_data and service_data[2]:
-                self.description_text.insert('1.0', service_data[2])
-            
-            self.description_text.pack(side='left', fill='both', expand=True)
-            description_scrollbar.pack(side='right', fill='y')
 
             # Configure column weights
             main_frame.columnconfigure(1, weight=1)
 
             # Buttons
             button_frame = ttk.Frame(main_frame)
-            button_frame.grid(row=description_row+1, column=0, columnspan=2, pady=30, sticky='ew')
+            button_frame.grid(row=7, column=0, columnspan=2, pady=30, sticky='ew')
 
             cancel_btn = ttk.Button(button_frame, text="Cancel", command=self.cancel)
             cancel_btn.pack(side='right', padx=(10, 0))
@@ -144,7 +119,6 @@ class ServiceDialog:
             category = self.category_var.get().strip()
             price_str = self.price_var.get().strip()
             duration = self.duration_var.get().strip()
-            description = self.description_text.get('1.0', tk.END).strip()
             status = self.status_var.get().strip()
 
             # Validate required fields
@@ -191,11 +165,11 @@ class ServiceDialog:
                 'category': category,
                 'price': price,
                 'duration': duration,
-                'description': description,
+                'description': '',  
                 'is_active': is_active
             }
             
-            print(f"ServiceDialog result: {self.result}")  # Debug print
+            print(f"ServiceDialog result: {self.result}")  
             self.dialog.destroy()
             
         except Exception as e:
@@ -328,14 +302,13 @@ class ServicesModule:
         controls_frame = ttk.Frame(parent, style='Content.TFrame')
         controls_frame.pack(fill='x', padx=20, pady=10)
         
-        ttk.Button(controls_frame, text="Add Service", command=self.add_service,
+        ttk.Button(controls_frame, text="Add", command=self.add_service,
                   style='Primary.TButton').pack(side='left', padx=(0, 10))
-        ttk.Button(controls_frame, text="Edit Service", command=self.edit_service,
+        ttk.Button(controls_frame, text="Edit", command=self.edit_service,
                   style='Secondary.TButton').pack(side='left', padx=(0, 10))
-        ttk.Button(controls_frame, text="Delete Service", command=self.delete_service,
+        ttk.Button(controls_frame, text="Delete", command=self.delete_service,
                   style='Danger.TButton').pack(side='left', padx=(0, 10))
-        ttk.Button(controls_frame, text="Refresh", command=self.refresh_services,
-                  style='Secondary.TButton').pack(side='left')
+        
         
         # Filter frame
         filter_frame = ttk.Frame(parent, style='Content.TFrame')
@@ -388,7 +361,6 @@ class ServicesModule:
         # Bind double-click for booking
         self.services_tree.bind('<Double-1>', self.book_service_from_tree)
         
-        # Action buttons frame - REMOVED "Add to Sale" button as requested
         action_frame = ttk.Frame(parent, style='Content.TFrame')
         action_frame.pack(fill='x', padx=20, pady=(0, 20))
         
@@ -421,8 +393,8 @@ class ServicesModule:
                   style='Secondary.TButton').pack(side='right', padx=(10, 0))
         ttk.Button(history_controls, text="View Details", command=self.view_booking_details,
                   style='Primary.TButton').pack(side='right', padx=(10, 0))
-        ttk.Button(history_controls, text="Refresh", command=self.refresh_service_history,
-                  style='Secondary.TButton').pack(side='right')
+        #ttk.Button(history_controls, text="Refresh", command=self.refresh_service_history,
+        #          style='Secondary.TButton').pack(side='right')
         
         # Service history table
         history_table_frame = ttk.Frame(parent, style='Content.TFrame')
@@ -596,7 +568,6 @@ class ServicesModule:
             item = self.services_tree.item(selection[0])
             service_data = item['values']
             
-            # FIXED: Get the correct indices for service data
             service_db_id = service_data[0]  # Database ID (hidden)
             service_id = service_data[1]     # Service ID 
             service_name = service_data[2]   # Service name
@@ -833,7 +804,7 @@ class ServicesModule:
                                 relief='flat', padx=20, pady=8, cursor='hand2')
             cancel_btn.pack(side='right', padx=(8, 0))
             
-            confirm_btn = tk.Button(button_container, text="Confirm Booking", command=confirm_booking,
+            confirm_btn = tk.Button(button_container, text="Confirm", command=confirm_booking,
                                 bg='#3b82f6', fg='white', font=('Arial', 10, 'bold'), 
                                 relief='flat', padx=20, pady=8, cursor='hand2')
             confirm_btn.pack(side='right')
@@ -1019,7 +990,6 @@ class ServicesModule:
             
             def configure_canvas(event):
                 canvas.configure(scrollregion=canvas.bbox("all"))
-                # Ensure the scrollable_frame fills the canvas width properly
                 canvas_width = event.width
                 canvas.itemconfig(canvas_window, width=canvas_width)
             
@@ -1210,7 +1180,6 @@ class ServicesModule:
                 notes_text.delete('1.0', tk.END)
                 notes_text.insert('1.0', "Payment received.")
             
-            # Quick action buttons arranged in a grid for better use of space
             btn_grid_frame = tk.Frame(quick_content, bg='white')
             btn_grid_frame.pack()
             
@@ -1400,7 +1369,7 @@ class ServicesModule:
                     formatted_booking_date = str(booking_date)
                 
                 # Format completed date if available
-                completed_date = booking[14]  # completed_date
+                completed_date = booking[14]  
                 if completed_date:
                     try:
                         if isinstance(completed_date, str):
@@ -1421,7 +1390,7 @@ class ServicesModule:
                         sched_obj = datetime.strptime(scheduled_date, '%Y-%m-%d')
                         scheduled_date = sched_obj.strftime('%B %d, %Y')
                     except:
-                        pass  # Keep original format if parsing fails
+                        pass  
                 
                 # Create detailed information dialog
                 detail_dialog = tk.Toplevel()
@@ -1719,9 +1688,9 @@ class ServicesModule:
         
         try:
             item = self.history_tree.item(selection[0])
-            booking_id = item['values'][1]  # Get booking_id from the tree
-            customer_name = item['values'][3]  # Get customer name
-            service_name = item['values'][4]  # Get service name
+            booking_id = item['values'][1]  
+            customer_name = item['values'][3]  
+            service_name = item['values'][4]  
             
             # Show confirmation dialog with details
             if messagebox.askyesno("Confirm Delete", 
@@ -1879,7 +1848,6 @@ class ServicesModule:
     def export_service_data(self, start_date=None, end_date=None):
         """Export service data for reporting (placeholder for future enhancement)"""
         try:
-            # This could be enhanced to export to CSV, Excel, etc.
             query = '''
                 SELECT booking_id, booking_date, customer_name, service_name, 
                        scheduled_date, status, payment_status, price

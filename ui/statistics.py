@@ -130,7 +130,6 @@ class StatisticsModule:
         ax.set_facecolor('white')
         fig.tight_layout()
         
-        # Add to tkinter
         canvas = FigureCanvasTkAgg(fig, master=chart_frame)
         canvas.draw()
         canvas.get_tk_widget().pack(fill='both', expand=True)
@@ -258,7 +257,6 @@ class StatisticsModule:
     def refresh_statistics(self):
         """Refresh statistics interface"""
         if self.frame:
-            # Destroy and recreate the statistics frame
             self.frame.destroy()
             return self.create_interface()
         return None
@@ -266,7 +264,6 @@ class StatisticsModule:
     def update_statistics(self, event=None):
         """Update statistics based on filter changes"""
         try:
-            # Clear and update each component individually
             if self.left_chart_frame:
                 for widget in self.left_chart_frame.winfo_children():
                     widget.destroy()

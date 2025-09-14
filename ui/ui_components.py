@@ -6,7 +6,6 @@ import uuid
 import sys
 import io
 
-# Fix Unicode console output on Windows
 try:
     if sys.platform.startswith('win'):
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -202,11 +201,6 @@ class ProductDialog:
             self.price_entry = ttk.Entry(main_frame, textvariable=self.price_var, width=35, style='Modern.TEntry')
             self.price_entry.grid(row=2, column=1, pady=8, sticky='ew')
 
-            # Stock
-            ttk.Label(main_frame, text="Stock Quantity:", style='FieldLabel.TLabel').grid(row=3, column=0, sticky='w', pady=8)
-            self.stock_var = tk.StringVar(value=str(product_data[3]) if product_data else "0")
-            self.stock_entry = ttk.Entry(main_frame, textvariable=self.stock_var, width=35, style='Modern.TEntry')
-            self.stock_entry.grid(row=3, column=1, pady=8, sticky='ew')
 
             # Category
             ttk.Label(main_frame, text="Category:", style='FieldLabel.TLabel').grid(row=4, column=0, sticky='w', pady=8)
@@ -639,7 +633,7 @@ class SalesEntryFrame(ttk.Frame):
         pass
 
 def create_styles():
-    """Create modern styles for the application with better error handling"""
+    """Create modern styles with the bike shop logo color scheme"""
     try:
         style = ttk.Style()
         
@@ -653,20 +647,24 @@ def create_styles():
             except tk.TclError:
                 print("Warning: 'alt' theme not available, using system default")
 
-        # Color scheme
+        # Color scheme based on the bike shop logo
         colors = {
-            'bg': '#f8fafc',
-            'sidebar_bg': '#1e293b',
-            'sidebar_text': '#e2e8f0',
-            'sidebar_active': '#3b82f6',
-            'card_bg': '#ffffff',
-            'text_primary': '#1e293b',
-            'text_secondary': '#64748b',
-            'border': '#e2e8f0',
-            'primary': '#3b82f6',
-            'success': '#10b981',
-            'warning': '#f59e0b',
-            'danger': '#ef4444'
+            'bg': '#f0fdff',                    # Very light cyan background
+            'sidebar_bg': '#0f172a',            # Deep dark blue/black from logo
+            'sidebar_text': '#ffffff',          # Pure white text
+            'sidebar_active': '#00d4ff',        # Bright cyan from logo
+            'card_bg': '#ffffff',               # Pure white cards
+            'text_primary': '#0f172a',          # Dark blue/black for primary text
+            'text_secondary': '#1e40af',        # Medium blue for secondary text
+            'border': '#7dd3fc',                # Light cyan borders
+            'primary': '#00bcd4',               # Turquoise/cyan primary
+            'primary_dark': '#0891b2',          # Darker cyan for hover states
+            'success': '#10b981',               # Keep green for success
+            'warning': '#f59e0b',               # Keep amber for warning
+            'danger': '#ef4444',                # Keep red for danger
+            'accent': '#0ea5e9',                # Sky blue accent
+            'gradient_start': '#00d4ff',        # Bright cyan (top of gradient)
+            'gradient_end': '#1e40af'           # Deep blue (bottom of gradient)
         }
 
         # Configure root
@@ -678,26 +676,35 @@ def create_styles():
         # Content frame styles
         try:
             style.configure('Content.TFrame', background=colors['bg'])
-            style.configure('Card.TFrame', background=colors['card_bg'], relief='solid', borderwidth=1)
+            style.configure('Card.TFrame', 
+                           background=colors['card_bg'], 
+                           relief='solid', 
+                           borderwidth=1,
+                           bordercolor=colors['border'])
         except tk.TclError as e:
             print(f"Warning: Could not configure frame styles: {e}")
 
-        # Sidebar styles
+        # Sidebar styles with gradient-like appearance
         try:
             style.configure('Sidebar.TFrame', background=colors['sidebar_bg'])
             style.configure('SidebarLogo.TFrame', background=colors['sidebar_bg'])
         except tk.TclError as e:
             print(f"Warning: Could not configure sidebar styles: {e}")
         
-        # Logo styles
+        # Logo styles with white text on dark background
         try:
-            style.configure('Logo.TLabel', background=colors['sidebar_bg'], foreground=colors['sidebar_text'])
-            style.configure('LogoTitle.TLabel', background=colors['sidebar_bg'], foreground=colors['sidebar_text'],
-                           font=('Helvetica', 11, 'bold'))
+            style.configure('Logo.TLabel', 
+                           background=colors['sidebar_bg'], 
+                           foreground=colors['sidebar_text'],
+                           font=('Helvetica', 16))  # Larger font for bike emoji
+            style.configure('LogoTitle.TLabel', 
+                           background=colors['sidebar_bg'], 
+                           foreground=colors['sidebar_text'],
+                           font=('Helvetica', 12, 'bold'))
         except tk.TclError as e:
             print(f"Warning: Could not configure logo styles: {e}")
 
-        # Navigation button styles
+        # Navigation button styles with cyan active state
         try:
             style.configure('SidebarNav.TButton', 
                            background=colors['sidebar_bg'],
@@ -709,11 +716,11 @@ def create_styles():
                            padding=(15, 12))
             
             style.map('SidebarNav.TButton',
-                     background=[('active', '#334155'), ('pressed', '#334155')])
+                     background=[('active', '#1e293b'), ('pressed', '#334155')])
 
             style.configure('SidebarNavActive.TButton',
                            background=colors['sidebar_active'],
-                           foreground='white',
+                           foreground=colors['sidebar_bg'],  # Dark text on bright cyan
                            borderwidth=0,
                            relief='flat',
                            font=('Helvetica', 10, 'bold'),
@@ -739,7 +746,7 @@ def create_styles():
         except tk.TclError as e:
             print(f"Warning: Could not configure page title styles: {e}")
 
-        # Breadcrumb styles
+        # Breadcrumb styles with blue theme
         try:
             style.configure('Breadcrumb.TLabel',
                            background=colors['bg'],
@@ -748,7 +755,7 @@ def create_styles():
             
             style.configure('BreadcrumbActive.TLabel',
                            background=colors['bg'],
-                           foreground=colors['text_primary'],
+                           foreground=colors['primary'],
                            font=('Helvetica', 10, 'bold'))
         except tk.TclError as e:
             print(f"Warning: Could not configure breadcrumb styles: {e}")
@@ -762,7 +769,7 @@ def create_styles():
 
             style.configure('SectionIcon.TLabel',
                            background=colors['card_bg'],
-                           foreground=colors['text_primary'])
+                           foreground=colors['primary'])  # Cyan icons
         except tk.TclError as e:
             print(f"Warning: Could not configure section styles: {e}")
 
@@ -775,28 +782,30 @@ def create_styles():
         except tk.TclError as e:
             print(f"Warning: Could not configure field label styles: {e}")
 
-        # Entry and combobox styles
+        # Entry and combobox styles with cyan borders
         try:
             style.configure('Modern.TEntry',
                            fieldbackground=colors['card_bg'],
                            foreground=colors['text_primary'],
                            bordercolor=colors['border'],
-                           borderwidth=1,
+                           borderwidth=2,
                            relief='solid',
-                           padding=12)
+                           padding=12,
+                           focuscolor=colors['primary'])
 
             style.configure('Modern.TCombobox',
                            fieldbackground=colors['card_bg'],
                            foreground=colors['text_primary'],
                            bordercolor=colors['border'],
-                           borderwidth=1,
+                           borderwidth=2,
                            relief='solid',
                            padding=12,
-                           arrowsize=12)
+                           arrowsize=12,
+                           focuscolor=colors['primary'])
         except tk.TclError as e:
             print(f"Warning: Could not configure entry/combobox styles: {e}")
 
-        # Button styles
+        # Button styles with cyan primary color
         try:
             style.configure('Primary.TButton',
                            background=colors['primary'],
@@ -807,7 +816,8 @@ def create_styles():
                            padding=(20, 12))
             
             style.map('Primary.TButton',
-                     background=[('active', '#2563eb'), ('pressed', '#1d4ed8')])
+                     background=[('active', colors['primary_dark']), 
+                               ('pressed', colors['gradient_end'])])
 
             style.configure('Secondary.TButton',
                            background=colors['border'],
@@ -833,32 +843,44 @@ def create_styles():
                            font=('Helvetica', 10, 'bold'),
                            padding=(20, 12))
 
+            # Special gradient-style button for checkout
             style.configure('RecordSale.TButton',
-                           background='#1f2937',
+                           background=colors['gradient_end'],  # Deep blue
                            foreground='white',
                            borderwidth=0,
                            relief='flat',
                            font=('Helvetica', 12, 'bold'),
                            padding=(20, 15))
+            
+            style.map('RecordSale.TButton',
+                     background=[('active', colors['primary']), 
+                               ('pressed', colors['gradient_start'])])
         except tk.TclError as e:
             print(f"Warning: Could not configure button styles: {e}")
 
-        # Treeview styles
+        # Treeview styles with cyan theme
         try:
             style.configure('Modern.Treeview',
                            background=colors['card_bg'],
                            foreground=colors['text_primary'],
                            fieldbackground=colors['card_bg'],
-                           borderwidth=0,
+                           borderwidth=1,
+                           bordercolor=colors['border'],
                            rowheight=35,
                            font=('Helvetica', 9))
 
             style.configure('Modern.Treeview.Heading',
-                           background=colors['bg'],
-                           foreground=colors['text_secondary'],
+                           background=colors['primary'],  # Cyan headers
+                           foreground='white',
                            relief='flat',
                            font=('Helvetica', 9, 'bold'),
-                           borderwidth=0)
+                           borderwidth=1,
+                           bordercolor=colors['primary_dark'])
+
+            # Alternating row colors
+            style.map('Modern.Treeview',
+                     background=[('selected', colors['primary']),
+                               ('active', colors['gradient_start'])])
         except tk.TclError as e:
             print(f"Warning: Could not configure treeview styles: {e}")
 
@@ -866,7 +888,7 @@ def create_styles():
         try:
             style.configure('TotalAmount.TLabel',
                            background=colors['card_bg'],
-                           foreground=colors['text_primary'],
+                           foreground=colors['gradient_end'],  # Deep blue for emphasis
                            font=('Helvetica', 18, 'bold'))
 
             style.configure('ValidationNote.TLabel',
@@ -886,12 +908,12 @@ def create_styles():
 
             style.configure('CardValue.TLabel',
                            background=colors['card_bg'],
-                           foreground=colors['text_primary'],
+                           foreground=colors['primary'],  # Cyan for values
                            font=('Helvetica', 20, 'bold'))
 
             style.configure('CardIcon.TLabel',
                            background=colors['card_bg'],
-                           foreground=colors['text_secondary'])
+                           foreground=colors['primary'])  # Cyan icons
 
             style.configure('Placeholder.TLabel',
                            background=colors['card_bg'],
@@ -906,26 +928,21 @@ def create_styles():
                            background=colors['card_bg'],
                            foreground=colors['text_primary'],
                            fieldbackground=colors['card_bg'],
-                           borderwidth=0,
+                           borderwidth=1,
+                           bordercolor=colors['border'],
                            rowheight=25,
                            font=('Helvetica', 8))
 
             style.configure('Dashboard.Treeview.Heading',
-                           background=colors['bg'],
-                           foreground=colors['text_secondary'],
+                           background=colors['accent'],  # Sky blue for dashboard
+                           foreground='white',
                            relief='flat',
                            font=('Helvetica', 8, 'bold'),
-                           borderwidth=0)
+                           borderwidth=1)
         except tk.TclError as e:
             print(f"Warning: Could not configure dashboard styles: {e}")
 
-        # Header styles
-        try:
-            style.configure('Header.TFrame', background=colors['bg'])
-        except tk.TclError as e:
-            print(f"Warning: Could not configure header styles: {e}")
-
-        # Insight styles
+        # Insight styles with gradient colors
         try:
             style.configure('InsightTitle.TLabel',
                            background=colors['card_bg'],
@@ -934,7 +951,7 @@ def create_styles():
 
             style.configure('InsightValue.TLabel',
                            background=colors['card_bg'],
-                           foreground=colors['text_primary'],
+                           foreground=colors['gradient_end'],
                            font=('Helvetica', 14, 'bold'))
         except tk.TclError as e:
             print(f"Warning: Could not configure insight styles: {e}")
@@ -949,16 +966,7 @@ def create_styles():
         except tk.TclError as e:
             print(f"Warning: Could not configure view more styles: {e}")
 
-        # No data style
-        try:
-            style.configure('NoData.TLabel',
-                           background=colors['card_bg'],
-                           foreground=colors['text_secondary'],
-                           font=('Helvetica', 10))
-        except tk.TclError as e:
-            print(f"Warning: Could not configure no data styles: {e}")
-
-        print("Styles created successfully!")
+        print("Bike shop color scheme applied successfully!")
         return True
         
     except Exception as e:
@@ -966,3 +974,15 @@ def create_styles():
         import traceback
         traceback.print_exc()
         return False
+
+# Color reference for manual styling or CSS
+BIKE_SHOP_COLORS = {
+    'Bright Cyan': '#00d4ff',      # Top of gradient - electric cyan
+    'Turquoise': '#00bcd4',        # Main brand color
+    'Sky Blue': '#0ea5e9',         # Accent color  
+    'Deep Blue': '#1e40af',        # Bottom of gradient
+    'Dark Navy': '#0f172a',        # Almost black blue
+    'White': '#ffffff',            # Pure white
+    'Light Cyan BG': '#f0fdff',    # Very light background
+    'Cyan Border': '#7dd3fc'       # Light cyan for borders
+}
