@@ -23,21 +23,38 @@ class StatisticsModule:
         
         ttk.Label(header_frame, text="Statistics & Analytics", style='PageTitle.TLabel').pack(side='left')
         
-        # Refresh button
-        #ttk.Button(header_frame, text="🔄 Refresh", command=self.refresh_statistics,
-                  #style='Secondary.TButton').pack(side='right')
-        
         # Filter controls
         filter_frame = ttk.Frame(self.frame, style='Content.TFrame')
         filter_frame.pack(fill='x', padx=30, pady=(0, 20))
         
-        ttk.Label(filter_frame, text="Time Period:", style='FieldLabel.TLabel').pack(side='left', padx=(0, 10))
-        self.stats_period_var = tk.StringVar(value='Last 30 Days')
-        period_combo = ttk.Combobox(filter_frame, textvariable=self.stats_period_var,
-                                   values=['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'This Year', 'All Time'],
-                                   state='readonly', style='Modern.TCombobox', width=15)
-        period_combo.pack(side='left', padx=(0, 20))
-        period_combo.bind('<<ComboboxSelected>>', self.update_statistics)
+        # Year selector
+        ttk.Label(filter_frame, text="Year:", style='FieldLabel.TLabel').pack(side='left', padx=(0, 10))
+        self.year_var = tk.StringVar(value=str(self.main_app.get_available_years()[0]))
+        year_combo = ttk.Combobox(filter_frame, textvariable=self.year_var,
+                                  values=self.main_app.get_available_years(),
+                                  state='readonly', style='Modern.TCombobox', width=10)
+        year_combo.pack(side='left', padx=(0, 20))
+        year_combo.bind('<<ComboboxSelected>>', self.on_year_changed)
+        
+        # Month selector
+        ttk.Label(filter_frame, text="Month:", style='FieldLabel.TLabel').pack(side='left', padx=(0, 10))
+        self.month_var = tk.StringVar(value='All Months')
+        month_values = ['All Months', 'January', 'February', 'March', 'April', 'May', 'June',
+                       'July', 'August', 'September', 'October', 'November', 'December']
+        month_combo = ttk.Combobox(filter_frame, textvariable=self.month_var,
+                                   values=month_values,
+                                   state='readonly', style='Modern.TCombobox', width=12)
+        month_combo.pack(side='left', padx=(0, 20))
+        month_combo.bind('<<ComboboxSelected>>', self.update_statistics)
+        
+        # Report Type selector
+        ttk.Label(filter_frame, text="Report Type:", style='FieldLabel.TLabel').pack(side='left', padx=(0, 10))
+        self.report_type_var = tk.StringVar(value='Monthly')
+        report_type_combo = ttk.Combobox(filter_frame, textvariable=self.report_type_var,
+                                        values=['Daily', 'Weekly', 'Monthly', 'Yearly'],
+                                        state='readonly', style='Modern.TCombobox', width=12)
+        report_type_combo.pack(side='left')
+        report_type_combo.bind('<<ComboboxSelected>>', self.update_statistics)
         
         # Main statistics content
         stats_content = ttk.Frame(self.frame, style='Content.TFrame')
@@ -47,10 +64,10 @@ class StatisticsModule:
         charts_row = ttk.Frame(stats_content, style='Content.TFrame')
         charts_row.pack(fill='x', pady=(0, 20))
         
-        # Left chart - Monthly Sales Trend
+        # Left chart - Sales Trend
         self.left_chart_frame = ttk.Frame(charts_row, style='Card.TFrame')
         self.left_chart_frame.pack(side='left', fill='both', expand=True, padx=(0, 10))
-        self.create_monthly_sales_chart(self.left_chart_frame)
+        self.create_sales_trend_chart(self.left_chart_frame)
         
         # Right chart - Sales by Category
         self.right_chart_frame = ttk.Frame(charts_row, style='Card.TFrame')
@@ -73,22 +90,29 @@ class StatisticsModule:
         
         return self.frame
 
-    def create_monthly_sales_chart(self, parent):
-        """Create monthly sales trend chart"""
+    def on_year_changed(self, event=None):
+        """Handle year selection change"""
+        # Reset month to 'All Months' when year changes
+        self.month_var.set('All Months')
+        self.update_statistics()
+
+    def create_sales_trend_chart(self, parent):
+        """Create sales trend chart based on filters"""
+        report_type = self.report_type_var.get() if hasattr(self, 'report_type_var') else 'Monthly'
+        selected_month = self.month_var.get() if hasattr(self, 'month_var') else 'All Months'
+        selected_year = self.year_var.get() if hasattr(self, 'year_var') else None
+        
         # Header
         header_frame = ttk.Frame(parent, style='Card.TFrame')
         header_frame.pack(fill='x', padx=20, pady=(15, 0))
         
-        ttk.Label(header_frame, text="Monthly Sales Trend", style='SectionTitle.TLabel').pack(side='left')
+        # Determine chart title based on selection
+        if selected_month != 'All Months':
+            chart_title = f"Daily Sales - {selected_month} {selected_year}"
+        else:
+            chart_title = f"{report_type} Sales Trend"
         
-        # Year selector
-        year_frame = ttk.Frame(header_frame, style='Card.TFrame')
-        year_frame.pack(side='right')
-        
-        year_var = tk.StringVar(value='2025')
-        year_combo = ttk.Combobox(year_frame, textvariable=year_var, values=['2023', '2024', '2025'], 
-                                 width=8, state='readonly', style='Modern.TCombobox')
-        year_combo.pack()
+        ttk.Label(header_frame, text=chart_title, style='SectionTitle.TLabel').pack(side='left')
         
         # Chart area
         chart_frame = ttk.Frame(parent, style='Card.TFrame')
@@ -98,24 +122,40 @@ class StatisticsModule:
         fig = plt.Figure(figsize=(6, 3), dpi=80, facecolor='white')
         ax = fig.add_subplot(111)
         
-        # Get monthly sales data
-        monthly_data = self.main_app.get_monthly_sales_data()
+        # Get sales data based on selection
+        if selected_month != 'All Months':
+            # Show daily data for selected month
+            sales_data = self.main_app.get_specific_month_sales_data(selected_month, selected_year)
+            xlabel = 'Day'
+        elif report_type == 'Daily':
+            sales_data = self.main_app.get_daily_sales_data()
+            xlabel = 'Date'
+        elif report_type == 'Weekly':
+            sales_data = self.main_app.get_weekly_sales_data()
+            xlabel = 'Week'
+        elif report_type == 'Yearly':
+            sales_data = self.main_app.get_yearly_sales_data()
+            xlabel = 'Year'
+        else:  # Monthly
+            sales_data = self.main_app.get_monthly_sales_data(selected_year)
+            xlabel = 'Month'
         
-        if monthly_data:
-            months = [row[0] for row in monthly_data]
-            revenue = [row[1] for row in monthly_data]
-            items_sold = [row[2] for row in monthly_data]
+        if sales_data:
+            labels = [row[0] for row in sales_data]
+            revenue = [row[1] for row in sales_data]
+            items_sold = [row[2] for row in sales_data]
             
             # Create dual axis chart
             ax2 = ax.twinx()
             
             # Revenue line
-            line1 = ax.plot(months, revenue, color='#3b82f6', linewidth=2, marker='o', 
+            line1 = ax.plot(labels, revenue, color='#3b82f6', linewidth=2, marker='o', 
                            markersize=4, label='Sales Revenue (₱)')
             
             # Items sold bars
-            bars = ax2.bar(months, items_sold, alpha=0.3, color='#94a3b8', label='Items Sold')
+            bars = ax2.bar(labels, items_sold, alpha=0.3, color='#94a3b8', label='Items Sold')
             
+            ax.set_xlabel(xlabel, fontsize=9)
             ax.set_ylabel('Sales Revenue (₱)', color='#3b82f6', fontsize=9)
             ax2.set_ylabel('Items Sold', color='#94a3b8', fontsize=9)
             ax.tick_params(axis='y', labelcolor='#3b82f6', labelsize=8)
@@ -173,7 +213,6 @@ class StatisticsModule:
         ax.set_facecolor('white')
         fig.tight_layout()
         
-        # Add to tkinter
         canvas = FigureCanvasTkAgg(fig, master=chart_frame)
         canvas.draw()
         canvas.get_tk_widget().pack(fill='both', expand=True)
@@ -209,9 +248,9 @@ class StatisticsModule:
         for i, buyer in enumerate(top_buyers, 1):
             tree.insert('', 'end', values=(
                 f"{i:02d}",
-                buyer[0][:15] + "..." if len(buyer[0]) > 15 else buyer[0],  # customer_name
-                buyer[1],  # purchase_count
-                f"₱{buyer[2]:,.2f}"  # total_amount
+                buyer[0][:15] + "..." if len(buyer[0]) > 15 else buyer[0],
+                buyer[1],
+                f"₱{buyer[2]:,.2f}"
             ))
         
         tree.pack(fill='both', expand=True)
@@ -247,9 +286,9 @@ class StatisticsModule:
         for i, product in enumerate(top_products, 1):
             tree.insert('', 'end', values=(
                 f"{i:02d}",
-                product[0][:15] + "..." if len(product[0]) > 15 else product[0],  # product_name
-                product[1],  # quantity_sold
-                f"₱{product[2]:,.2f}"  # total_revenue
+                product[0][:15] + "..." if len(product[0]) > 15 else product[0],
+                product[1],
+                f"₱{product[2]:,.2f}"
             ))
         
         tree.pack(fill='both', expand=True)
@@ -267,7 +306,7 @@ class StatisticsModule:
             if self.left_chart_frame:
                 for widget in self.left_chart_frame.winfo_children():
                     widget.destroy()
-                self.create_monthly_sales_chart(self.left_chart_frame)
+                self.create_sales_trend_chart(self.left_chart_frame)
             
             if self.right_chart_frame:
                 for widget in self.right_chart_frame.winfo_children():

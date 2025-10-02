@@ -241,18 +241,234 @@ class BikeShopInventorySystem:
             return {'sales_count': 0, 'items_sold': 0, 'revenue': 0.0}
 
     def get_monthly_sales_data(self):
-        """Get monthly sales data for chart"""
-        self.cursor.execute('''
-            SELECT 
-                strftime('%m', sale_date) as month,
-                SUM(total) as revenue,
-                SUM(quantity) as items_sold
-            FROM sales 
-            WHERE strftime('%Y', sale_date) = '2025'
-            GROUP BY month
-            ORDER BY month
-        ''')
-        return self.cursor.fetchall()
+        """Get monthly sales data for the current year"""
+        try:
+            current_year = datetime.now().year
+            self.cursor.execute('''
+                SELECT 
+                    strftime('%m', sale_date) as month,
+                    SUM(total) as revenue,
+                    SUM(quantity) as items_sold
+                FROM sales 
+                WHERE strftime('%Y', sale_date) = ?
+                GROUP BY month
+                ORDER BY month
+            ''', (str(current_year),))
+            
+            results = self.cursor.fetchall()
+            
+            # Format month numbers to month names
+            month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+            formatted_results = []
+            for row in results:
+                month_index = int(row[0]) - 1
+                month_name = month_names[month_index]
+                formatted_results.append((month_name, row[1], row[2]))
+            
+            return formatted_results
+        except Exception as e:
+            print(f"Error getting monthly sales data: {e}")
+            return []
+        
+    def get_specific_month_sales_data(self, month_name):
+        """Get daily sales data for a specific month"""
+        try:
+            current_year = datetime.now().year
+            
+            # Map month names to numbers
+            month_map = {
+                'January': '01', 'February': '02', 'March': '03', 'April': '04',
+                'May': '05', 'June': '06', 'July': '07', 'August': '08',
+                'September': '09', 'October': '10', 'November': '11', 'December': '12'
+            }
+            
+            month_num = month_map.get(month_name)
+            if not month_num:
+                return []
+            
+            self.cursor.execute('''
+                SELECT 
+                    strftime('%d', sale_date) as day,
+                    SUM(total) as revenue,
+                    SUM(quantity) as items_sold
+                FROM sales 
+                WHERE strftime('%Y', sale_date) = ? AND strftime('%m', sale_date) = ?
+                GROUP BY day
+                ORDER BY day
+            ''', (str(current_year), month_num))
+            
+            results = self.cursor.fetchall()
+            
+            # Format day labels
+            formatted_results = []
+            for row in results:
+                day_label = f"Day {int(row[0])}"
+                formatted_results.append((day_label, row[1], row[2]))
+            
+            return formatted_results
+        except Exception as e:
+            print(f"Error getting specific month sales data: {e}")
+            return []
+
+    def get_daily_sales_data(self):
+        """Get daily sales data for the last 30 days"""
+        try:
+            self.cursor.execute('''
+                SELECT 
+                    DATE(sale_date) as date,
+                    SUM(total) as revenue,
+                    SUM(quantity) as items_sold
+                FROM sales 
+                WHERE DATE(sale_date) >= DATE('now', '-30 days')
+                GROUP BY DATE(sale_date)
+                ORDER BY date
+            ''')
+            results = self.cursor.fetchall()
+            
+            # Format dates to be more readable (MM-DD)
+            formatted_results = []
+            for row in results:
+                date_obj = datetime.strptime(row[0], '%Y-%m-%d')
+                formatted_date = date_obj.strftime('%m-%d')
+                formatted_results.append((formatted_date, row[1], row[2]))
+            
+            return formatted_results
+        except Exception as e:
+            print(f"Error getting daily sales data: {e}")
+            return []
+
+    def get_weekly_sales_data(self):
+        """Get weekly sales data for the last 12 weeks"""
+        try:
+            self.cursor.execute('''
+                SELECT 
+                    strftime('%Y-W%W', sale_date) as week,
+                    SUM(total) as revenue,
+                    SUM(quantity) as items_sold
+                FROM sales 
+                WHERE DATE(sale_date) >= DATE('now', '-84 days')
+                GROUP BY week
+                ORDER BY week
+            ''')
+            results = self.cursor.fetchall()
+            
+            # Format week labels (W01, W02, etc.)
+            formatted_results = []
+            for row in results:
+                week_label = f"W{row[0].split('-W')[1]}"
+                formatted_results.append((week_label, row[1], row[2]))
+            
+            return formatted_results
+        except Exception as e:
+            print(f"Error getting weekly sales data: {e}")
+            return []
+
+    def get_yearly_sales_data(self):
+        """Get yearly sales data for the last 5 years"""
+        try:
+            self.cursor.execute('''
+                SELECT 
+                    strftime('%Y', sale_date) as year,
+                    SUM(total) as revenue,
+                    SUM(quantity) as items_sold
+                FROM sales 
+                GROUP BY year
+                ORDER BY year
+            ''')
+            return self.cursor.fetchall()
+        except Exception as e:
+            print(f"Error getting yearly sales data: {e}")
+            return []
+
+    def get_available_years(self):
+        """Get list of years that have sales data"""
+        try:
+            self.cursor.execute('''
+                SELECT DISTINCT strftime('%Y', sale_date) as year
+                FROM sales 
+                WHERE sale_date IS NOT NULL
+                ORDER BY year DESC
+            ''')
+            results = self.cursor.fetchall()
+            return [row[0] for row in results] if results else [str(datetime.now().year)]
+        except Exception as e:
+            print(f"Error getting available years: {e}")
+            return [str(datetime.now().year)]
+
+    def get_monthly_sales_data(self, year=None):
+        """Get monthly sales data for a specific year"""
+        try:
+            if year is None:
+                year = datetime.now().year
+            
+            self.cursor.execute('''
+                SELECT 
+                    strftime('%m', sale_date) as month,
+                    SUM(total) as revenue,
+                    SUM(quantity) as items_sold
+                FROM sales 
+                WHERE strftime('%Y', sale_date) = ?
+                GROUP BY month
+                ORDER BY month
+            ''', (str(year),))
+            
+            results = self.cursor.fetchall()
+            
+            # Format month numbers to month names
+            month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+            formatted_results = []
+            for row in results:
+                month_index = int(row[0]) - 1
+                month_name = month_names[month_index]
+                formatted_results.append((month_name, row[1], row[2]))
+            
+            return formatted_results
+        except Exception as e:
+            print(f"Error getting monthly sales data: {e}")
+            return []
+
+    def get_specific_month_sales_data(self, month_name, year=None):
+        """Get daily sales data for a specific month and year"""
+        try:
+            if year is None:
+                year = datetime.now().year
+            
+            # Map month names to numbers
+            month_map = {
+                'January': '01', 'February': '02', 'March': '03', 'April': '04',
+                'May': '05', 'June': '06', 'July': '07', 'August': '08',
+                'September': '09', 'October': '10', 'November': '11', 'December': '12'
+            }
+            
+            month_num = month_map.get(month_name)
+            if not month_num:
+                return []
+            
+            self.cursor.execute('''
+                SELECT 
+                    strftime('%d', sale_date) as day,
+                    SUM(total) as revenue,
+                    SUM(quantity) as items_sold
+                FROM sales 
+                WHERE strftime('%Y', sale_date) = ? AND strftime('%m', sale_date) = ?
+                GROUP BY day
+                ORDER BY day
+            ''', (str(year), month_num))
+            
+            results = self.cursor.fetchall()
+            
+            # Format day labels
+            formatted_results = []
+            for row in results:
+                day_label = f"Day {int(row[0])}"
+                formatted_results.append((day_label, row[1], row[2]))
+            
+            return formatted_results
+        except Exception as e:
+            print(f"Error getting specific month sales data: {e}")
+            return []
 
     def get_category_sales_data(self):
         """Get sales data by category"""
