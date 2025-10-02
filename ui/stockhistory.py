@@ -23,7 +23,27 @@ class StockHistoryModule:
         controls_frame = ttk.Frame(self.frame, style='Content.TFrame')
         controls_frame.pack(fill='x', padx=30, pady=10)
         
-        # Left side - Filters
+        # Top row - Search box
+        search_frame = ttk.Frame(controls_frame, style='Content.TFrame')
+        search_frame.pack(fill='x', pady=(0, 10))
+        
+        ttk.Label(search_frame, text="Search:", style='FieldLabel.TLabel').pack(side='left', padx=(0, 5))
+        
+        self.search_var = tk.StringVar()
+        self.search_var.trace('w', self.on_search_change)
+        
+        search_entry = ttk.Entry(search_frame, textvariable=self.search_var, width=40, style='Modern.TEntry')
+        search_entry.pack(side='left', padx=(0, 10))
+        
+        # Clear search button
+        ttk.Button(search_frame, text="Clear", command=self.clear_search, 
+                  style='Secondary.TButton').pack(side='left', padx=(0, 10))
+        
+        # Search hint label
+        ttk.Label(search_frame, text="(Search by product, customer, or transaction ID)", 
+                 style='Hint.TLabel').pack(side='left', padx=(10, 0))
+        
+        # Bottom row - Left side - Filters
         filters_frame = ttk.Frame(controls_frame, style='Content.TFrame')
         filters_frame.pack(side='left', fill='x', expand=True)
         
@@ -140,6 +160,152 @@ class StockHistoryModule:
         self.refresh_stock_history()
         
         return self.frame
+
+    def on_search_change(self, *args):
+        """Handle search input changes"""
+        search_term = self.search_var.get().strip()
+        if search_term:
+            self.search_stock_history(search_term)
+        else:
+            self.refresh_stock_history()
+
+    def search_stock_history(self, search_term):
+        """Search stock history by product name, customer name, or transaction ID"""
+        if not hasattr(self, 'stock_history_tree') or not self.stock_history_tree.winfo_exists():
+            return
+            
+        # Clear existing items
+        for item in self.stock_history_tree.get_children():
+            self.stock_history_tree.delete(item)
+            
+        try:
+            # Build query with search
+            date_filter = self.date_filter_var.get() if hasattr(self, 'date_filter_var') else 'All Time'
+            category_filter = self.stock_category_var.get() if hasattr(self, 'stock_category_var') else 'All Categories'
+            movement_filter = self.movement_type_var.get() if hasattr(self, 'movement_type_var') else 'All Sales'
+            
+            sales_query = '''
+                SELECT 
+                    s.id,
+                    DATE(s.sale_date) as sale_date,
+                    TIME(s.sale_date) as sale_time,
+                    s.transaction_id,
+                    s.product_name,
+                    s.product_id,
+                    s.product_category,
+                    s.customer_name,
+                    COALESCE(s.customer_address, 'N/A') as customer_address,
+                    'Sale (Out)' as movement_type,
+                    s.quantity,
+                    s.price,
+                    s.total,
+                    p.stock as current_stock
+                FROM sales s
+                LEFT JOIN products p ON s.product_id = p.product_id
+                WHERE 1=1
+            '''
+            
+            params = []
+            
+            # Add search filter
+            search_pattern = f"%{search_term}%"
+            sales_query += """ AND (
+                s.product_name LIKE ? OR 
+                s.customer_name LIKE ? OR 
+                s.transaction_id LIKE ?
+            )"""
+            params.extend([search_pattern, search_pattern, search_pattern])
+            
+            # Add date filter
+            if date_filter == 'Today':
+                sales_query += " AND DATE(s.sale_date) = DATE('now')"
+            elif date_filter == 'Last 7 Days':
+                sales_query += " AND DATE(s.sale_date) >= DATE('now', '-7 days')"
+            elif date_filter == 'Last 30 Days':
+                sales_query += " AND DATE(s.sale_date) >= DATE('now', '-30 days')"
+            elif date_filter == 'Last 90 Days':
+                sales_query += " AND DATE(s.sale_date) >= DATE('now', '-90 days')"
+            
+            # Add category filter
+            if category_filter != 'All Categories':
+                sales_query += " AND s.product_category = ?"
+                params.append(category_filter)
+            
+            # Add movement type filter
+            if movement_filter == 'Returns':
+                sales_query += " AND s.quantity < 0" 
+            elif movement_filter == 'Regular Sales':
+                sales_query += " AND s.quantity > 0"  
+            
+            # Order by date descending
+            sales_query += " ORDER BY s.sale_date DESC, s.id DESC"
+            
+            # Execute query
+            self.main_app.cursor.execute(sales_query, params)
+            history_data = self.main_app.cursor.fetchall()
+            
+            # Insert data into treeview
+            total_transactions = 0
+            total_items_sold = 0
+            total_revenue = 0
+            
+            for record in history_data:
+                # Format the data for display
+                record_id = record[0] if record[0] else 0
+                date_str = record[1] if record[1] else 'N/A'
+                time_str = record[2] if record[2] else 'N/A'
+                transaction_id = record[3] if record[3] else 'N/A'
+                product_name = record[4] if record[4] else 'Unknown Product'
+                product_id = record[5] if record[5] else 'N/A'
+                category = record[6] if record[6] else 'N/A'
+                customer_name = record[7] if record[7] else 'N/A'
+                customer_address = record[8] if record[8] else 'N/A'
+                movement_type = record[9] if record[9] else 'N/A'
+                quantity = int(record[10]) if record[10] else 0
+                unit_price = float(record[11]) if record[11] else 0.0
+                total_amount = float(record[12]) if record[12] else 0.0
+                current_stock = int(record[13]) if record[13] else 0
+                
+                self.stock_history_tree.insert('', 'end', values=(
+                    record_id,  
+                    date_str,
+                    time_str,
+                    transaction_id,
+                    product_name,
+                    product_id,
+                    category,
+                    customer_name,
+                    customer_address,
+                    movement_type,
+                    f"{quantity:,}", 
+                    f"₱{unit_price:.2f}",
+                    f"₱{total_amount:.2f}",
+                    f"{current_stock:,}"
+                ))
+                
+                # Update summary statistics
+                total_transactions += 1
+                total_items_sold += abs(quantity)  
+                total_revenue += total_amount
+            
+            # Update summary display
+            if hasattr(self, 'total_transactions_var'):
+                self.total_transactions_var.set(f"{total_transactions:,}")
+                self.total_items_sold_var.set(f"{total_items_sold:,}")
+                self.total_revenue_var.set(f"₱{total_revenue:,.2f}")
+                
+            print(f"Found {len(history_data)} records matching '{search_term}'")
+            
+        except Exception as e:
+            print(f"Error searching stock history: {e}")
+            import traceback
+            traceback.print_exc()
+            messagebox.showerror("Error", f"Failed to search stock history: {str(e)}")
+
+    def clear_search(self):
+        """Clear the search box and show all records"""
+        self.search_var.set("")
+        self.refresh_stock_history()
 
     def on_row_double_click(self, event):
         """Handle double-click on a row to edit customer info"""

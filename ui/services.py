@@ -297,29 +297,36 @@ class ServicesModule:
         return self.frame
     
     def create_services_tab(self, parent):
-        """Create the services management tab"""
+        """Create the services management tab with search"""
         # Services controls
         controls_frame = ttk.Frame(parent, style='Content.TFrame')
         controls_frame.pack(fill='x', padx=20, pady=10)
         
         ttk.Button(controls_frame, text="Add", command=self.add_service,
-                  style='Primary.TButton').pack(side='left', padx=(0, 10))
+                style='Primary.TButton').pack(side='left', padx=(0, 10))
         ttk.Button(controls_frame, text="Edit", command=self.edit_service,
-                  style='Secondary.TButton').pack(side='left', padx=(0, 10))
+                style='Secondary.TButton').pack(side='left', padx=(0, 10))
         ttk.Button(controls_frame, text="Delete", command=self.delete_service,
-                  style='Danger.TButton').pack(side='left', padx=(0, 10))
+                style='Danger.TButton').pack(side='left', padx=(0, 10))
         
+        # Search and Filter frame
+        search_filter_frame = ttk.Frame(parent, style='Content.TFrame')
+        search_filter_frame.pack(fill='x', padx=20, pady=(0, 10))
         
-        # Filter frame
-        filter_frame = ttk.Frame(parent, style='Content.TFrame')
-        filter_frame.pack(fill='x', padx=20, pady=(0, 10))
+        # Search box
+        ttk.Label(search_filter_frame, text="Search:", style='FieldLabel.TLabel').pack(side='left', padx=(0, 10))
+        self.services_search_var = tk.StringVar()
+        self.services_search_var.trace('w', lambda *args: self.search_services())
+        search_entry = ttk.Entry(search_filter_frame, textvariable=self.services_search_var, width=30)
+        search_entry.pack(side='left', padx=(0, 20))
         
-        ttk.Label(filter_frame, text="Filter by Category:", style='FieldLabel.TLabel').pack(side='left', padx=(0, 10))
+        # Category filter
+        ttk.Label(search_filter_frame, text="Filter by Category:", style='FieldLabel.TLabel').pack(side='left', padx=(0, 10))
         self.category_filter_var = tk.StringVar(value='All Categories')
-        category_filter = ttk.Combobox(filter_frame, textvariable=self.category_filter_var,
-                                     values=['All Categories', 'Cleaning', 'Assembly', 'Suspension', 
-                                           'Drivetrain', 'Wheels', 'Brakes'],
-                                     state='readonly', style='Modern.TCombobox', width=15)
+        category_filter = ttk.Combobox(search_filter_frame, textvariable=self.category_filter_var,
+                                    values=['All Categories', 'Cleaning', 'Assembly', 'Suspension', 
+                                        'Drivetrain', 'Wheels', 'Brakes', 'General'],
+                                    state='readonly', style='Modern.TCombobox', width=15)
         category_filter.pack(side='left')
         category_filter.bind('<<ComboboxSelected>>', self.filter_services)
         
@@ -330,7 +337,7 @@ class ServicesModule:
         # Create treeview for services
         columns = ('ID', 'Service ID', 'Name', 'Category', 'Price', 'Duration', 'Status')
         self.services_tree = ttk.Treeview(table_frame, columns=columns, show='headings', 
-                                         style='Modern.Treeview')
+                                        style='Modern.Treeview')
         
         # Configure columns
         column_widths = {
@@ -364,37 +371,42 @@ class ServicesModule:
         action_frame = ttk.Frame(parent, style='Content.TFrame')
         action_frame.pack(fill='x', padx=20, pady=(0, 20))
         
-        ttk.Button(action_frame, text="📅Select Service", 
-                  command=self.book_selected_service,
-                  style='Success.TButton').pack(side='left', padx=(0, 10))
+        ttk.Button(action_frame, text="📅 Select Service", 
+                command=self.book_selected_service,
+                style='Success.TButton').pack(side='left', padx=(0, 10))
         
         # Load services
         self.load_services()
     
     def create_service_history_tab(self, parent):
-        """Create the service history tab"""
+        """Create the service history tab with search"""
         # History controls
         history_controls = ttk.Frame(parent, style='Content.TFrame')
         history_controls.pack(fill='x', padx=20, pady=10)
         
-        # Filter controls
+        # Search box for history
+        ttk.Label(history_controls, text="Search:", style='FieldLabel.TLabel').pack(side='left', padx=(0, 10))
+        self.history_search_var = tk.StringVar()
+        self.history_search_var.trace('w', lambda *args: self.search_service_history())
+        search_entry = ttk.Entry(history_controls, textvariable=self.history_search_var, width=30)
+        search_entry.pack(side='left', padx=(0, 20))
+        
+        # Status filter
         ttk.Label(history_controls, text="Filter by Status:", style='FieldLabel.TLabel').pack(side='left', padx=(0, 10))
         self.status_filter_var = tk.StringVar(value='All Status')
         status_filter = ttk.Combobox(history_controls, textvariable=self.status_filter_var,
-                                   values=['All Status', 'Pending', 'In Progress', 'Completed', 'Cancelled'],
-                                   state='readonly', style='Modern.TCombobox', width=15)
+                                values=['All Status', 'Pending', 'In Progress', 'Completed', 'Cancelled'],
+                                state='readonly', style='Modern.TCombobox', width=15)
         status_filter.pack(side='left', padx=(0, 20))
         status_filter.bind('<<ComboboxSelected>>', self.filter_service_history)
         
         # Action buttons
         ttk.Button(history_controls, text="Delete Record", command=self.delete_service_history,
-                  style='Danger.TButton').pack(side='right', padx=(10, 0))
+                style='Danger.TButton').pack(side='right', padx=(10, 0))
         ttk.Button(history_controls, text="Update Status", command=self.update_booking_status,
-                  style='Secondary.TButton').pack(side='right', padx=(10, 0))
+                style='Secondary.TButton').pack(side='right', padx=(10, 0))
         ttk.Button(history_controls, text="View Details", command=self.view_booking_details,
-                  style='Primary.TButton').pack(side='right', padx=(10, 0))
-        #ttk.Button(history_controls, text="Refresh", command=self.refresh_service_history,
-        #          style='Secondary.TButton').pack(side='right')
+                style='Primary.TButton').pack(side='right', padx=(10, 0))
         
         # Service history table
         history_table_frame = ttk.Frame(parent, style='Content.TFrame')
@@ -402,7 +414,7 @@ class ServicesModule:
         
         # Create treeview for service history
         history_columns = ('ID', 'Service ID', 'Date', 'Customer', 'Service', 'Contact', 
-                          'Scheduled', 'Status', 'Payment', 'Price')
+                        'Scheduled', 'Status', 'Payment', 'Price')
         self.history_tree = ttk.Treeview(history_table_frame, columns=history_columns, 
                                         show='headings', style='Modern.Treeview')
         
@@ -443,6 +455,147 @@ class ServicesModule:
         
         # Load service history
         self.load_service_history()
+
+    def search_services(self):
+        """Search services by name, service ID, or category"""
+        try:
+            search_term = self.services_search_var.get().strip().lower()
+            
+            # Clear existing items
+            for item in self.services_tree.get_children():
+                self.services_tree.delete(item)
+            
+            # Get category filter
+            category_filter = self.category_filter_var.get()
+            
+            # Build query based on search and filter
+            if category_filter == 'All Categories':
+                if search_term:
+                    self.main_app.cursor.execute('''
+                        SELECT id, service_id, name, category, price, duration, is_active
+                        FROM services 
+                        WHERE LOWER(name) LIKE ? OR LOWER(service_id) LIKE ? OR LOWER(category) LIKE ?
+                        ORDER BY category, name
+                    ''', (f'%{search_term}%', f'%{search_term}%', f'%{search_term}%'))
+                else:
+                    self.main_app.cursor.execute('''
+                        SELECT id, service_id, name, category, price, duration, is_active
+                        FROM services 
+                        ORDER BY category, name
+                    ''')
+            else:
+                if search_term:
+                    self.main_app.cursor.execute('''
+                        SELECT id, service_id, name, category, price, duration, is_active
+                        FROM services 
+                        WHERE category = ? AND (LOWER(name) LIKE ? OR LOWER(service_id) LIKE ?)
+                        ORDER BY name
+                    ''', (category_filter, f'%{search_term}%', f'%{search_term}%'))
+                else:
+                    self.main_app.cursor.execute('''
+                        SELECT id, service_id, name, category, price, duration, is_active
+                        FROM services 
+                        WHERE category = ?
+                        ORDER BY name
+                    ''', (category_filter,))
+            
+            services = self.main_app.cursor.fetchall()
+            
+            for service in services:
+                status = 'Active' if service[6] else 'Inactive'
+                self.services_tree.insert('', 'end', values=(
+                    service[0],  # id (hidden)
+                    service[1],  # service_id
+                    service[2],  # name
+                    service[3],  # category
+                    f"₱{service[4]:.2f}",  # price
+                    service[5],  # duration
+                    status      # status
+                ))
+                
+        except Exception as e:
+            print(f"Error searching services: {e}")
+            messagebox.showerror("Error", f"Failed to search services: {str(e)}")
+
+    def search_service_history(self):
+        """Search service history by customer name, booking ID, or service name"""
+        try:
+            search_term = self.history_search_var.get().strip().lower()
+            
+            # Clear existing items
+            for item in self.history_tree.get_children():
+                self.history_tree.delete(item)
+            
+            # Get status filter
+            status_filter = self.status_filter_var.get()
+            
+            # Build query based on search and filter
+            if status_filter == 'All Status':
+                if search_term:
+                    self.main_app.cursor.execute('''
+                        SELECT id, booking_id, booking_date, customer_name, service_name, 
+                            customer_contact, scheduled_date, status, payment_status, price
+                        FROM service_bookings 
+                        WHERE LOWER(customer_name) LIKE ? OR LOWER(booking_id) LIKE ? OR LOWER(service_name) LIKE ?
+                        ORDER BY booking_date DESC
+                    ''', (f'%{search_term}%', f'%{search_term}%', f'%{search_term}%'))
+                else:
+                    self.main_app.cursor.execute('''
+                        SELECT id, booking_id, booking_date, customer_name, service_name, 
+                            customer_contact, scheduled_date, status, payment_status, price
+                        FROM service_bookings 
+                        ORDER BY booking_date DESC
+                    ''')
+            else:
+                if search_term:
+                    self.main_app.cursor.execute('''
+                        SELECT id, booking_id, booking_date, customer_name, service_name, 
+                            customer_contact, scheduled_date, status, payment_status, price
+                        FROM service_bookings 
+                        WHERE status = ? AND (LOWER(customer_name) LIKE ? OR LOWER(booking_id) LIKE ? OR LOWER(service_name) LIKE ?)
+                        ORDER BY booking_date DESC
+                    ''', (status_filter, f'%{search_term}%', f'%{search_term}%', f'%{search_term}%'))
+                else:
+                    self.main_app.cursor.execute('''
+                        SELECT id, booking_id, booking_date, customer_name, service_name, 
+                            customer_contact, scheduled_date, status, payment_status, price
+                        FROM service_bookings 
+                        WHERE status = ?
+                        ORDER BY booking_date DESC
+                    ''', (status_filter,))
+            
+            bookings = self.main_app.cursor.fetchall()
+            
+            for booking in bookings:
+                # Format date
+                booking_date = booking[2]
+                if isinstance(booking_date, str):
+                    try:
+                        date_obj = datetime.strptime(booking_date.split()[0], '%Y-%m-%d')
+                        formatted_date = date_obj.strftime('%m/%d/%Y')
+                    except:
+                        formatted_date = booking_date[:10]
+                else:
+                    formatted_date = str(booking_date)[:10]
+                
+                scheduled = booking[6] if booking[6] else 'TBD'
+                
+                self.history_tree.insert('', 'end', values=(
+                    booking[0],  # id (hidden)
+                    booking[1],  # booking_id
+                    formatted_date,  # booking_date
+                    booking[3],  # customer_name
+                    booking[4],  # service_name
+                    booking[5] or 'N/A',  # customer_contact
+                    scheduled,   # scheduled_date
+                    booking[7],  # status
+                    booking[8],  # payment_status
+                    f"₱{booking[9]:.2f}"  # price
+                ))
+                
+        except Exception as e:
+            print(f"Error searching service history: {e}")
+            messagebox.showerror("Error", f"Failed to search service history: {str(e)}")
     
     def load_services(self):
         """Load all services into the services tree"""

@@ -651,7 +651,7 @@ def create_styles():
             'card_bg': '#ffffff',               # Pure white cards
             'text_primary': '#0f172a',          # Dark blue/black for primary text
             'text_secondary': '#1e40af',        # Medium blue for secondary text
-            'border': '#7dd3fc',                # Light cyan borders
+            'border': "#ceefff",                # Light cyan borders
             'primary': '#00bcd4',               # Turquoise/cyan primary
             'primary_dark': '#0891b2',          # Darker cyan for hover states
             'success': '#10b981',               # Keep green for success
