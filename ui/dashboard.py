@@ -746,14 +746,14 @@ class DashboardModule:
         # Create new window
         alert_window = tk.Toplevel(self.frame)
         alert_window.title("Stock Alerts")
-        alert_window.geometry("800x600")
+        alert_window.geometry("900x600")
         alert_window.transient(self.frame)
         
         # Center the window
         alert_window.update_idletasks()
-        x = (alert_window.winfo_screenwidth() // 2) - (800 // 2)
+        x = (alert_window.winfo_screenwidth() // 2) - (900 // 2)
         y = (alert_window.winfo_screenheight() // 2) - (600 // 2)
-        alert_window.geometry(f"800x600+{x}+{y}")
+        alert_window.geometry(f"900x600+{x}+{y}")
         
         # Main frame
         main_frame = ttk.Frame(alert_window, style='Content.TFrame')
@@ -762,28 +762,28 @@ class DashboardModule:
         # Header
         ttk.Label(main_frame, text="All Stock Alerts", style='PageTitle.TLabel').pack(pady=(0, 20))
         
-        # Table frame
+        # Table frame with padding
         table_frame = ttk.Frame(main_frame, style='Card.TFrame')
-        table_frame.pack(fill='both', expand=True)
+        table_frame.pack(fill='both', expand=True, padx=20, pady=20)
         
         # Create treeview
-        columns = ('SKU', 'Product', 'Category', 'Current Stock', 'Min Stock', 'Status')
+        columns = ('Product ID', 'Product Name', 'Category', 'Current Stock', 'Min Stock', 'Status')
         tree = ttk.Treeview(table_frame, columns=columns, show='headings', style='Modern.Treeview')
         
-        # Configure columns
-        tree.heading('SKU', text='SKU')
-        tree.heading('Product', text='Product Name')
-        tree.heading('Category', text='Category')
-        tree.heading('Current Stock', text='Current Stock')
-        tree.heading('Min Stock', text='Min Stock')
-        tree.heading('Status', text='Status')
+        # Configure columns with proper widths and anchors
+        tree.heading('Product ID', text='Product ID', anchor='center')
+        tree.heading('Product Name', text='Product Name', anchor='w')
+        tree.heading('Category', text='Category', anchor='center')
+        tree.heading('Current Stock', text='Current Stock', anchor='center')
+        tree.heading('Min Stock', text='Min Stock', anchor='center')
+        tree.heading('Status', text='Status', anchor='center')
         
-        tree.column('SKU', width=100)
-        tree.column('Product', width=200)
-        tree.column('Category', width=150)
-        tree.column('Current Stock', width=100)
-        tree.column('Min Stock', width=100)
-        tree.column('Status', width=100)
+        tree.column('Product ID', width=100, minwidth=80, anchor='center')
+        tree.column('Product Name', width=250, minwidth=200, anchor='w')
+        tree.column('Category', width=150, minwidth=120, anchor='center')
+        tree.column('Current Stock', width=120, minwidth=100, anchor='center')
+        tree.column('Min Stock', width=100, minwidth=80, anchor='center')
+        tree.column('Status', width=130, minwidth=100, anchor='center')
         
         # Add scrollbar
         scrollbar = ttk.Scrollbar(table_frame, orient='vertical', command=tree.yview)
@@ -796,17 +796,17 @@ class DashboardModule:
         # Get all low stock products
         low_stock_products = self.main_app.get_low_stock_products()
         
-        # Insert data
+        # Insert data with proper formatting
         for product in low_stock_products:
             status = "OUT OF STOCK" if product[3] == 0 else "LOW STOCK"
             status_color = 'red' if product[3] == 0 else 'orange'
             
             tree.insert('', 'end', values=(
-                product[4] if len(product) > 4 else product[0],  
-                product[1],  # name
-                product[2] if len(product) > 4 else "General", 
-                product[3],  # current stock
-                5,  
+                product[4] if len(product) > 4 else product[0],  # Product ID
+                product[1],  # Product Name
+                product[2] if len(product) > 2 else "160.0",  # Category
+                product[3],  # Current Stock
+                5,  # Min Stock
                 status
             ), tags=(status_color,))
         
@@ -815,8 +815,10 @@ class DashboardModule:
         tree.tag_configure('orange', foreground='#f97316')
         
         # Add close button
-        ttk.Button(main_frame, text="Close", command=alert_window.destroy,
-                  style='Secondary.TButton').pack(pady=20)
+        button_frame = ttk.Frame(main_frame, style='Content.TFrame')
+        button_frame.pack(pady=20)
+        ttk.Button(button_frame, text="Close", command=alert_window.destroy,
+                style='Secondary.TButton').pack()
 
     def create_stock_alert_table(self, parent):
         """Create stock alert table"""
@@ -837,15 +839,15 @@ class DashboardModule:
         low_stock_products = self.main_app.get_low_stock_products()
         
         if low_stock_products:
-            columns = ('SKU', 'Product', 'Quantity')
+            columns = ('Product ID', 'Product', 'Quantity')
             tree = ttk.Treeview(table_frame, columns=columns, show='headings', style='Dashboard.Treeview', height=6)
             
             # Configure columns
-            tree.heading('SKU', text='SKU')
+            tree.heading('Product ID', text='Product ID')
             tree.heading('Product', text='Product')
             tree.heading('Quantity', text='Quantity')
             
-            tree.column('SKU', width=80)
+            tree.column('Product ID', width=80)
             tree.column('Product', width=150)
             tree.column('Quantity', width=80)
             
