@@ -20,6 +20,9 @@ class InventoryModule:
         
         ttk.Label(header_frame, text="Inventory", style='PageTitle.TLabel').pack(side='left')
         
+        # Statistics Panel
+        self.create_statistics_panel()
+        
         # Search frame
         search_frame = ttk.Frame(self.frame, style='Content.TFrame')
         search_frame.pack(fill='x', padx=30, pady=10)
@@ -85,6 +88,84 @@ class InventoryModule:
         
         return self.frame
 
+    def create_statistics_panel(self):
+        """Create a panel to display inventory statistics"""
+        stats_frame = ttk.Frame(self.frame, style='Content.TFrame')
+        stats_frame.pack(fill='x', padx=30, pady=(0, 20))
+        
+        # Container for stat cards
+        cards_container = ttk.Frame(stats_frame, style='Content.TFrame')
+        cards_container.pack(fill='x')
+        
+        # Total Stock Card
+        stock_card = ttk.Frame(cards_container, style='Card.TFrame', relief='raised', borderwidth=1)
+        stock_card.pack(side='left', fill='both', expand=True, padx=(0, 10))
+        
+        ttk.Label(stock_card, text="Total Stock Units", 
+                 font=('Arial', 10), foreground='#666').pack(pady=(15, 5))
+        self.total_stock_label = ttk.Label(stock_card, text="0", 
+                                          font=('Arial', 24, 'bold'), foreground="#000000")
+        self.total_stock_label.pack(pady=(0, 15))
+        
+        # Total Inventory Value Card
+        value_card = ttk.Frame(cards_container, style='Card.TFrame', relief='raised', borderwidth=1)
+        value_card.pack(side='left', fill='both', expand=True, padx=(0, 10))
+        
+        ttk.Label(value_card, text="Total Inventory Value", 
+                 font=('Arial', 10), foreground='#666').pack(pady=(15, 5))
+        self.total_value_label = ttk.Label(value_card, text="₱0.00", 
+                                          font=('Arial', 24, 'bold'), foreground="#000000")
+        self.total_value_label.pack(pady=(0, 15))
+        
+        # Total Revenue Card
+        revenue_card = ttk.Frame(cards_container, style='Card.TFrame', relief='raised', borderwidth=1)
+        revenue_card.pack(side='left', fill='both', expand=True, padx=(0, 10))
+        
+        ttk.Label(revenue_card, text="Total Revenue (Sales)", 
+                 font=('Arial', 10), foreground='#666').pack(pady=(15, 5))
+        self.total_revenue_label = ttk.Label(revenue_card, text="₱0.00", 
+                                            font=('Arial', 24, 'bold'), foreground="#000000")
+        self.total_revenue_label.pack(pady=(0, 15))
+        
+        # Total Products Card
+        products_card = ttk.Frame(cards_container, style='Card.TFrame', relief='raised', borderwidth=1)
+        products_card.pack(side='left', fill='both', expand=True)
+        
+        ttk.Label(products_card, text="Total Products", 
+                 font=('Arial', 10), foreground='#666').pack(pady=(15, 5))
+        self.total_products_label = ttk.Label(products_card, text="0", 
+                                             font=('Arial', 24, 'bold'), foreground="#000000")
+        self.total_products_label.pack(pady=(0, 15))
+
+    def update_statistics(self):
+        """Update the statistics display"""
+        try:
+            # Calculate total stock units
+            self.main_app.cursor.execute('SELECT SUM(stock) FROM products')
+            total_stock = self.main_app.cursor.fetchone()[0] or 0
+            
+            # Calculate total inventory value (stock * price)
+            self.main_app.cursor.execute('SELECT SUM(stock * price) FROM products')
+            total_value = self.main_app.cursor.fetchone()[0] or 0
+            
+            # Calculate total revenue from sales (using 'total' column from sales table)
+            # Only count positive quantities (actual sales, not returns)
+            self.main_app.cursor.execute('SELECT SUM(total) FROM sales WHERE quantity > 0')
+            total_revenue = self.main_app.cursor.fetchone()[0] or 0
+            
+            # Count total products
+            self.main_app.cursor.execute('SELECT COUNT(*) FROM products')
+            total_products = self.main_app.cursor.fetchone()[0] or 0
+            
+            # Update labels
+            self.total_stock_label.config(text=f"{total_stock:,}")
+            self.total_value_label.config(text=f"₱{total_value:,.2f}")
+            self.total_revenue_label.config(text=f"₱{total_revenue:,.2f}")
+            self.total_products_label.config(text=f"{total_products}")
+            
+        except Exception as e:
+            print(f"Error updating statistics: {e}")
+
     def add_stock(self):
         """Add stock to an existing product"""
         if not hasattr(self, 'inventory_tree'):
@@ -138,6 +219,12 @@ class InventoryModule:
                     self.search_products(self.search_var.get().strip())
                 else:
                     self.refresh_products()
+                
+                # Update statistics
+                self.update_statistics()
+                
+                # Refresh stock history if it's currently displayed
+                self.refresh_stock_history_if_visible()
                     
                 messagebox.showinfo("Success", 
                     f"Added {quantity_to_add} units to '{product_name}'\n"
@@ -289,6 +376,12 @@ class InventoryModule:
                 else:
                     self.refresh_products()
                 
+                # Update statistics
+                self.update_statistics()
+                
+                # Refresh stock history if it's currently displayed
+                self.refresh_stock_history_if_visible()
+                
         except sqlite3.IntegrityError as e:
             self.main_app.conn.rollback()
             messagebox.showerror("Error", f"Product ID already exists or constraint violation: {str(e)}")
@@ -365,6 +458,12 @@ class InventoryModule:
                     self.search_products(self.search_var.get().strip())
                 else:
                     self.refresh_products()
+                
+                # Update statistics
+                self.update_statistics()
+                
+                # Refresh stock history if it's currently displayed
+                self.refresh_stock_history_if_visible()
                     
                 messagebox.showinfo("Success", "Product updated successfully!")
                 
@@ -410,6 +509,12 @@ class InventoryModule:
                     self.search_products(self.search_var.get().strip())
                 else:
                     self.refresh_products()
+                
+                # Update statistics
+                self.update_statistics()
+                
+                # Refresh stock history if it's currently displayed
+                self.refresh_stock_history_if_visible()
                     
                 messagebox.showinfo("Success", "Product deleted successfully!")
             except sqlite3.Error as e:
@@ -439,6 +544,9 @@ class InventoryModule:
                         product[5]   # product_id
                     ))
                     
+                # Update statistics
+                self.update_statistics()
+                    
                 print(f"Loaded {len(products)} products into inventory")
                 
             except Exception as e:
@@ -456,6 +564,20 @@ class InventoryModule:
                 self.refresh_products()
             return self.frame
         return None
+
+    def refresh_stock_history_if_visible(self):
+        """Refresh stock history module if it exists and is visible"""
+        try:
+            # Check if main_app has a stock_history module
+            if hasattr(self.main_app, 'stock_history_module'):
+                stock_history = self.main_app.stock_history_module
+                # Check if the stock history frame exists and is visible
+                if hasattr(stock_history, 'frame') and stock_history.frame and stock_history.frame.winfo_exists():
+                    if stock_history.frame.winfo_viewable():
+                        stock_history.refresh_stock_history()
+                        print("Stock history refreshed after inventory change")
+        except Exception as e:
+            print(f"Could not refresh stock history: {e}")
 
 
 class AddStockDialog:

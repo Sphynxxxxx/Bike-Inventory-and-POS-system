@@ -62,10 +62,6 @@ class StockHistoryModule:
         ttk.Button(buttons_frame, text="Delete Selected", command=self.delete_stock_history,
                   style='Danger.TButton').pack(side='right', padx=(0, 10))
         
-        # Refresh button
-        #ttk.Button(buttons_frame, text="Refresh", command=self.refresh_stock_history,
-        #          style='Secondary.TButton').pack(side='right', padx=(0, 10))
-        
         # Stock history table
         table_frame = ttk.Frame(self.frame, style='Content.TFrame')
         table_frame.pack(fill='both', expand=True, padx=30, pady=20)
@@ -116,6 +112,9 @@ class StockHistoryModule:
         table_frame.grid_rowconfigure(0, weight=1)
         table_frame.grid_columnconfigure(0, weight=1)
         
+        # Bind double-click event to edit customer info
+        self.stock_history_tree.bind('<Double-Button-1>', self.on_row_double_click)
+        
         # Summary section
         summary_frame = ttk.Frame(self.frame, style='Card.TFrame')
         summary_frame.pack(fill='x', padx=30, pady=(0, 20))
@@ -141,6 +140,82 @@ class StockHistoryModule:
         self.refresh_stock_history()
         
         return self.frame
+
+    def on_row_double_click(self, event):
+        """Handle double-click on a row to edit customer info"""
+        # Get the item that was clicked
+        item_id = self.stock_history_tree.identify_row(event.y)
+        
+        if not item_id:
+            return
+        
+        # Select the row
+        self.stock_history_tree.selection_set(item_id)
+        
+        # Open edit dialog
+        self.edit_customer_info()
+
+    def edit_customer_info(self):
+        """Edit customer name and address for selected sale record"""
+        if not hasattr(self, 'stock_history_tree'):
+            messagebox.showwarning("Warning", "Please navigate to stock history first.")
+            return
+            
+        selection = self.stock_history_tree.selection()
+        if not selection:
+            messagebox.showwarning("Warning", "Please select a sale record to edit.")
+            return
+        
+        if len(selection) > 1:
+            messagebox.showwarning("Warning", "Please select only one record at a time to edit.")
+            return
+            
+        # Get selected item details
+        item = self.stock_history_tree.item(selection[0])
+        values = item['values']
+        
+        sales_id = values[0]
+        transaction_id = values[3]
+        product_name = values[4]
+        current_customer_name = values[7]
+        current_customer_address = values[8]
+        
+        # Open edit dialog
+        dialog = EditCustomerDialog(
+            self.main_app.root, 
+            transaction_id,
+            product_name,
+            current_customer_name if current_customer_name != 'N/A' else '',
+            current_customer_address if current_customer_address != 'N/A' else ''
+        )
+        
+        if dialog.result:
+            try:
+                new_customer_name = dialog.result['customer_name'].strip()
+                new_customer_address = dialog.result['customer_address'].strip()
+                
+                # Update the sales record
+                self.main_app.cursor.execute('''
+                    UPDATE sales 
+                    SET customer_name = ?, customer_address = ?
+                    WHERE id = ?
+                ''', (new_customer_name if new_customer_name else None,
+                      new_customer_address if new_customer_address else None,
+                      sales_id))
+                
+                self.main_app.conn.commit()
+                
+                # Refresh the display
+                self.refresh_stock_history()
+                
+                messagebox.showinfo("Success", "Customer information updated successfully!")
+                
+            except sqlite3.Error as e:
+                self.main_app.conn.rollback()
+                messagebox.showerror("Database Error", f"Failed to update customer information: {str(e)}")
+            except Exception as e:
+                self.main_app.conn.rollback()
+                messagebox.showerror("Error", f"Unexpected error occurred: {str(e)}")
 
     def delete_stock_history(self):
         """Delete selected stock history records"""
@@ -256,8 +331,12 @@ class StockHistoryModule:
             # Refresh the display
             self.refresh_stock_history()
             
-            if hasattr(self.main_app, 'inventory_frame') and self.main_app.inventory_frame and self.main_app.inventory_frame.winfo_viewable():
-                self.main_app.refresh_products()
+            # Refresh inventory if visible
+            if hasattr(self.main_app, 'inventory_module'):
+                inventory = self.main_app.inventory_module
+                if hasattr(inventory, 'frame') and inventory.frame and inventory.frame.winfo_exists():
+                    if inventory.frame.winfo_viewable():
+                        inventory.refresh_products()
                 
         except sqlite3.Error as e:
             self.main_app.conn.rollback()
@@ -398,3 +477,96 @@ class StockHistoryModule:
             self.refresh_stock_history()
             return self.frame
         return None
+
+
+class EditCustomerDialog:
+    """Dialog for editing customer information"""
+    
+    def __init__(self, parent, transaction_id, product_name, current_name, current_address):
+        self.result = None
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title("Edit Customer Information")
+        self.dialog.geometry("500x400")
+        self.dialog.resizable(False, False)
+        self.dialog.transient(parent)
+        self.dialog.grab_set()
+        
+        # Center the dialog
+        self.dialog.update_idletasks()
+        x = (self.dialog.winfo_screenwidth() // 2) - (500 // 2)
+        y = (self.dialog.winfo_screenheight() // 2) - (350 // 2)
+        self.dialog.geometry(f"500x400+{x}+{y}")
+        
+        # Main frame
+        main_frame = ttk.Frame(self.dialog, padding="25")
+        main_frame.pack(fill='both', expand=True)
+        
+        # Title
+        ttk.Label(main_frame, text="Edit Customer Information", 
+                 font=('Arial', 14, 'bold')).pack(anchor='w', pady=(0, 10))
+        
+        # Transaction info
+        info_frame = ttk.Frame(main_frame)
+        info_frame.pack(fill='x', pady=(0, 20))
+        
+        ttk.Label(info_frame, text=f"Transaction ID: {transaction_id}", 
+                 font=('Arial', 10)).pack(anchor='w', pady=(0, 3))
+        ttk.Label(info_frame, text=f"Product: {product_name}", 
+                 font=('Arial', 10)).pack(anchor='w')
+        
+        # Separator
+        ttk.Separator(main_frame, orient='horizontal').pack(fill='x', pady=(0, 20))
+        
+        # Customer Name
+        ttk.Label(main_frame, text="Customer Name:", 
+                 font=('Arial', 10, 'bold')).pack(anchor='w', pady=(0, 5))
+        self.name_var = tk.StringVar(value=current_name)
+        name_entry = ttk.Entry(main_frame, textvariable=self.name_var, width=50, font=('Arial', 10))
+        name_entry.pack(anchor='w', pady=(0, 20), ipady=5)
+        name_entry.focus()
+        
+        # Customer Address
+        ttk.Label(main_frame, text="Customer Address:", 
+                 font=('Arial', 10, 'bold')).pack(anchor='w', pady=(0, 5))
+        
+        # Text widget for multi-line address
+        address_frame = ttk.Frame(main_frame)
+        address_frame.pack(anchor='w', fill='x', pady=(0, 20))
+        
+        self.address_text = tk.Text(address_frame, height=4, width=50, font=('Arial', 10), wrap='word')
+        self.address_text.pack(side='left', fill='both', expand=True)
+        self.address_text.insert('1.0', current_address)
+        
+        address_scrollbar = ttk.Scrollbar(address_frame, command=self.address_text.yview)
+        address_scrollbar.pack(side='right', fill='y')
+        self.address_text.config(yscrollcommand=address_scrollbar.set)
+        
+        # Buttons
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill='x', pady=(10, 0))
+        
+        ttk.Button(button_frame, text="Save Changes", 
+                  command=self.save_clicked).pack(side='right', padx=(10, 0))
+        ttk.Button(button_frame, text="Cancel", 
+                  command=self.cancel_clicked).pack(side='right')
+        
+        # Bind Enter key (but not in text widget)
+        name_entry.bind('<Return>', lambda e: self.save_clicked())
+        self.dialog.bind('<Escape>', lambda e: self.cancel_clicked())
+        
+        self.dialog.wait_window()
+    
+    def save_clicked(self):
+        customer_name = self.name_var.get().strip()
+        customer_address = self.address_text.get('1.0', 'end-1c').strip()
+        
+        # Allow empty values (will be stored as NULL in database)
+        self.result = {
+            'customer_name': customer_name,
+            'customer_address': customer_address
+        }
+        
+        self.dialog.destroy()
+    
+    def cancel_clicked(self):
+        self.dialog.destroy()

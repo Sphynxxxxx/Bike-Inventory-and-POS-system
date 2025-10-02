@@ -386,7 +386,6 @@ class PointOfSaleModule:
         self.search_entry.focus()
 
 
-
     def load_products(self):
         """Load all products into memory and display"""
         try:
