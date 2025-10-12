@@ -104,15 +104,15 @@ class PointOfSaleModule:
                                         show='headings', style='Modern.Treeview', height=15)
         
         for col in product_columns:
-            self.product_tree.heading(col, text=col)
+            self.product_tree.heading(col, text=col, anchor='center')
             if col == 'ID':
-                self.product_tree.column(col, width=60)
+                self.product_tree.column(col, width=60, anchor='center')
             elif col == 'Name':
-                self.product_tree.column(col, width=150)
+                self.product_tree.column(col, width=150, anchor='center')
             elif col == 'Category':
-                self.product_tree.column(col, width=100)
+                self.product_tree.column(col, width=100, anchor='center')
             else:
-                self.product_tree.column(col, width=80)
+                self.product_tree.column(col, width=80, anchor='center')
         
         # Scrollbar for products
         product_scrollbar = ttk.Scrollbar(product_list_frame, orient='vertical', 
@@ -154,11 +154,11 @@ class PointOfSaleModule:
                                      show='headings', style='Modern.Treeview', height=12)
         
         for col in cart_columns:
-            self.cart_tree.heading(col, text=col)
+            self.cart_tree.heading(col, text=col, anchor='center')
             if col == 'Product':
-                self.cart_tree.column(col, width=150)
+                self.cart_tree.column(col, width=150, anchor='center')
             else:
-                self.cart_tree.column(col, width=80)
+                self.cart_tree.column(col, width=80, anchor='center')
         
         # Scrollbar for cart
         cart_scrollbar = ttk.Scrollbar(cart_frame, orient='vertical', 

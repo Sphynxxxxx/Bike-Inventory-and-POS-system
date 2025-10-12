@@ -340,16 +340,16 @@ class StatisticsModule:
         columns = ('Rank', 'Customer', 'Purchases', 'Total Amount')
         tree = ttk.Treeview(table_frame, columns=columns, show='headings', style='Dashboard.Treeview', height=8)
         
-        # Configure columns
-        tree.heading('Rank', text='#')
-        tree.heading('Customer', text='Customer')
-        tree.heading('Purchases', text='Purchases')
-        tree.heading('Total Amount', text='Total Amount')
+        # Configure columns with CENTER alignment
+        tree.heading('Rank', text='#', anchor='center')
+        tree.heading('Customer', text='Customer', anchor='center')
+        tree.heading('Purchases', text='Purchases', anchor='center')
+        tree.heading('Total Amount', text='Total Amount', anchor='center')
         
-        tree.column('Rank', width=30)
-        tree.column('Customer', width=120)
-        tree.column('Purchases', width=80)
-        tree.column('Total Amount', width=100)
+        tree.column('Rank', width=30, anchor='center')
+        tree.column('Customer', width=120, anchor='center')
+        tree.column('Purchases', width=80, anchor='center')
+        tree.column('Total Amount', width=100, anchor='center')
         
         # Get top buyers data
         top_buyers = self.main_app.get_top_buyers()
@@ -362,6 +362,7 @@ class StatisticsModule:
             ))
         
         tree.pack(fill='both', expand=True)
+    
 
     def create_product_performance_table(self, parent):
         """Create product performance table"""
@@ -378,16 +379,16 @@ class StatisticsModule:
         columns = ('Rank', 'Product', 'Sold', 'Revenue')
         tree = ttk.Treeview(table_frame, columns=columns, show='headings', style='Dashboard.Treeview', height=8)
         
-        # Configure columns
-        tree.heading('Rank', text='#')
-        tree.heading('Product', text='Product')
-        tree.heading('Sold', text='Sold')
-        tree.heading('Revenue', text='Revenue')
+        # Configure columns with CENTER alignment
+        tree.heading('Rank', text='#', anchor='center')
+        tree.heading('Product', text='Product', anchor='center')
+        tree.heading('Sold', text='Sold', anchor='center')
+        tree.heading('Revenue', text='Revenue', anchor='center')
         
-        tree.column('Rank', width=30)
-        tree.column('Product', width=120)
-        tree.column('Sold', width=60)
-        tree.column('Revenue', width=100)
+        tree.column('Rank', width=30, anchor='center')
+        tree.column('Product', width=120, anchor='center')
+        tree.column('Sold', width=60, anchor='center')
+        tree.column('Revenue', width=100, anchor='center')
         
         # Get top products data
         top_products = self.main_app.get_top_products()

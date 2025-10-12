@@ -307,16 +307,16 @@ class DashboardModule:
         tree = ttk.Treeview(table_frame, columns=columns, show='headings', style='Dashboard.Treeview', height=6)
         
         # Configure columns
-        tree.heading('#', text='#')
-        tree.heading('Date', text='Date')
-        tree.heading('Product', text='Product')
-        tree.heading('Customer', text='Customer')
+        tree.heading('#', text='#', anchor='center')
+        tree.heading('Date', text='Date', anchor='center')
+        tree.heading('Product', text='Product', anchor='center')
+        tree.heading('Customer', text='Customer', anchor='center')
         #tree.heading('Amount', text='Amount')
         
-        tree.column('#', width=30)
-        tree.column('Date', width=70)
-        tree.column('Product', width=100)
-        tree.column('Customer', width=80)
+        tree.column('#', width=30, anchor='center')
+        tree.column('Date', width=70, anchor='center')
+        tree.column('Product', width=100, anchor='center')
+        tree.column('Customer', width=80, anchor='center')
         #tree.column('Amount', width=80)
         
         # Get recent sales data
@@ -772,14 +772,14 @@ class DashboardModule:
         
         # Configure columns with proper widths and anchors
         tree.heading('Product ID', text='Product ID', anchor='center')
-        tree.heading('Product Name', text='Product Name', anchor='w')
+        tree.heading('Product Name', text='Product Name', anchor='center')
         tree.heading('Category', text='Category', anchor='center')
         tree.heading('Current Stock', text='Current Stock', anchor='center')
         tree.heading('Min Stock', text='Min Stock', anchor='center')
         tree.heading('Status', text='Status', anchor='center')
         
         tree.column('Product ID', width=100, minwidth=80, anchor='center')
-        tree.column('Product Name', width=250, minwidth=200, anchor='w')
+        tree.column('Product Name', width=250, minwidth=200, anchor='center')
         tree.column('Category', width=150, minwidth=120, anchor='center')
         tree.column('Current Stock', width=120, minwidth=100, anchor='center')
         tree.column('Min Stock', width=100, minwidth=80, anchor='center')
@@ -843,13 +843,13 @@ class DashboardModule:
             tree = ttk.Treeview(table_frame, columns=columns, show='headings', style='Dashboard.Treeview', height=6)
             
             # Configure columns
-            tree.heading('Product ID', text='Product ID')
-            tree.heading('Product', text='Product')
-            tree.heading('Quantity', text='Quantity')
+            tree.heading('Product ID', text='Product ID', anchor='center')
+            tree.heading('Product', text='Product', anchor='center')
+            tree.heading('Quantity', text='Quantity', anchor='center')
             
-            tree.column('Product ID', width=80)
-            tree.column('Product', width=150)
-            tree.column('Quantity', width=80)
+            tree.column('Product ID', width=80, anchor='center')
+            tree.column('Product', width=150, anchor='center')
+            tree.column('Quantity', width=80, anchor='center')
             
             for product in low_stock_products:
                 tree.insert('', 'end', values=(

@@ -37,11 +37,11 @@ class StockHistoryModule:
         
         # Clear search button
         ttk.Button(search_frame, text="Clear", command=self.clear_search, 
-                  style='Secondary.TButton').pack(side='left', padx=(0, 10))
+                style='Secondary.TButton').pack(side='left', padx=(0, 10))
         
         # Search hint label
         ttk.Label(search_frame, text="(Search by product, customer, or transaction ID)", 
-                 style='Hint.TLabel').pack(side='left', padx=(10, 0))
+                style='Hint.TLabel').pack(side='left', padx=(10, 0))
         
         # Bottom row - Left side - Filters
         filters_frame = ttk.Frame(controls_frame, style='Content.TFrame')
@@ -51,8 +51,8 @@ class StockHistoryModule:
         ttk.Label(filters_frame, text="Filter by Date:", style='FieldLabel.TLabel').pack(side='left', padx=(0, 5))
         self.date_filter_var = tk.StringVar(value='All Time')
         date_filter = ttk.Combobox(filters_frame, textvariable=self.date_filter_var,
-                                  values=['All Time', 'Today', 'Last 7 Days', 'Last 30 Days', 'Last 90 Days'],
-                                  state='readonly', style='Modern.TCombobox', width=15)
+                                values=['All Time', 'Today', 'Last 7 Days', 'Last 30 Days', 'Last 90 Days'],
+                                state='readonly', style='Modern.TCombobox', width=15)
         date_filter.pack(side='left', padx=(0, 15))
         date_filter.bind('<<ComboboxSelected>>', self.filter_stock_history)
         
@@ -60,8 +60,8 @@ class StockHistoryModule:
         ttk.Label(filters_frame, text="Category:", style='FieldLabel.TLabel').pack(side='left', padx=(0, 5))
         self.stock_category_var = tk.StringVar(value='All Categories')
         category_filter = ttk.Combobox(filters_frame, textvariable=self.stock_category_var,
-                                     values=['All Categories', 'Bikes', 'Accessories', 'Parts', 'Clothing', 'Services'],
-                                     state='readonly', style='Modern.TCombobox', width=15)
+                                    values=['All Categories', 'Bikes', 'Accessories', 'Parts', 'Clothing', 'Services'],
+                                    state='readonly', style='Modern.TCombobox', width=15)
         category_filter.pack(side='left', padx=(0, 15))
         category_filter.bind('<<ComboboxSelected>>', self.filter_stock_history)
         
@@ -69,8 +69,8 @@ class StockHistoryModule:
         ttk.Label(filters_frame, text="Movement Type:", style='FieldLabel.TLabel').pack(side='left', padx=(0, 5))
         self.movement_type_var = tk.StringVar(value='All Sales')
         movement_filter = ttk.Combobox(filters_frame, textvariable=self.movement_type_var,
-                                     values=['All Sales', 'Regular Sales', 'Returns'],
-                                     state='readonly', style='Modern.TCombobox', width=15)
+                                    values=['All Sales', 'Regular Sales', 'Returns'],
+                                    state='readonly', style='Modern.TCombobox', width=15)
         movement_filter.pack(side='left', padx=(0, 15))
         movement_filter.bind('<<ComboboxSelected>>', self.filter_stock_history)
         
@@ -80,7 +80,7 @@ class StockHistoryModule:
         
         # Delete button
         ttk.Button(buttons_frame, text="Delete Selected", command=self.delete_stock_history,
-                  style='Danger.TButton').pack(side='right', padx=(0, 10))
+                style='Danger.TButton').pack(side='right', padx=(0, 10))
         
         # Stock history table
         table_frame = ttk.Frame(self.frame, style='Content.TFrame')
@@ -88,11 +88,11 @@ class StockHistoryModule:
         
         # Create treeview for stock history 
         columns = ('ID', 'Date', 'Time', 'Transaction ID', 'Product Name', 'Product ID', 
-                  'Category', 'Customer Name', 'Customer Address', 'Movement Type', 'Quantity', 'Unit Price', 'Total Amount', 'Current Stock')
+                'Category', 'Customer Name', 'Customer Address', 'Movement Type', 'Quantity', 'Unit Price', 'Total Amount', 'Current Stock')
         self.stock_history_tree = ttk.Treeview(table_frame, columns=columns, show='headings', 
-                                              style='Modern.Treeview', height=20)
+                                            style='Modern.Treeview', height=20)
         
-        # Configure columns
+        # Configure columns with CENTER alignment
         column_widths = {
             'ID': 60,  
             'Date': 80,
@@ -111,8 +111,8 @@ class StockHistoryModule:
         }
         
         for col in columns:
-            self.stock_history_tree.heading(col, text=col)
-            self.stock_history_tree.column(col, width=column_widths.get(col, 100), minwidth=50)
+            self.stock_history_tree.heading(col, text=col, anchor='center')  # Center-align header
+            self.stock_history_tree.column(col, width=column_widths.get(col, 100), minwidth=50, anchor='center')  # Center-align content
         
         # Hide the ID column but keep it for reference
         self.stock_history_tree.column('ID', width=0, stretch=False)
