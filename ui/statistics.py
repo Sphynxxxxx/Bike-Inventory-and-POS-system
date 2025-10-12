@@ -2,6 +2,8 @@ import tkinter as tk
 from tkinter import ttk
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.animation import FuncAnimation
+import numpy as np
 
 class StatisticsModule:
     def __init__(self, parent, main_app):
@@ -12,6 +14,8 @@ class StatisticsModule:
         self.right_chart_frame = None
         self.top_buyers_frame = None
         self.product_performance_frame = None
+        self.line_anim = None  # Store animation reference
+        self.pie_anim = None   # Store animation reference
         
     def create_interface(self):
         """Create the statistics interface with charts and top buyers"""
@@ -97,7 +101,7 @@ class StatisticsModule:
         self.update_statistics()
 
     def create_sales_trend_chart(self, parent):
-        """Create sales trend chart based on filters"""
+        """Create sales trend chart based on filters with animation"""
         report_type = self.report_type_var.get() if hasattr(self, 'report_type_var') else 'Monthly'
         selected_month = self.month_var.get() if hasattr(self, 'month_var') else 'All Months'
         selected_year = self.year_var.get() if hasattr(self, 'year_var') else None
@@ -119,12 +123,11 @@ class StatisticsModule:
         chart_frame.pack(fill='both', expand=True, padx=20, pady=(10, 15))
         
         # Create matplotlib figure
-        fig = plt.Figure(figsize=(6, 3), dpi=80, facecolor='white')
+        fig = plt.Figure(figsize=(6, 4), dpi=100, facecolor='white')  
         ax = fig.add_subplot(111)
         
         # Get sales data based on selection
         if selected_month != 'All Months':
-            # Show daily data for selected month
             sales_data = self.main_app.get_specific_month_sales_data(selected_month, selected_year)
             xlabel = 'Day'
         elif report_type == 'Daily':
@@ -140,6 +143,8 @@ class StatisticsModule:
             sales_data = self.main_app.get_monthly_sales_data(selected_year)
             xlabel = 'Month'
         
+        canvas = FigureCanvasTkAgg(fig, master=chart_frame)
+        
         if sales_data:
             labels = [row[0] for row in sales_data]
             revenue = [row[1] for row in sales_data]
@@ -148,34 +153,64 @@ class StatisticsModule:
             # Create dual axis chart
             ax2 = ax.twinx()
             
-            # Revenue line
-            line1 = ax.plot(labels, revenue, color='#3b82f6', linewidth=2, marker='o', 
+            # Initialize empty plots
+            line, = ax.plot([], [], color='#3b82f6', linewidth=2, marker='o', 
                            markersize=4, label='Sales Revenue (₱)')
-            
-            # Items sold bars
-            bars = ax2.bar(labels, items_sold, alpha=0.3, color='#94a3b8', label='Items Sold')
+            bars = ax2.bar(range(len(labels)), [0] * len(items_sold), alpha=0.3, 
+                          color='#94a3b8', label='Items Sold')
             
             ax.set_xlabel(xlabel, fontsize=9)
             ax.set_ylabel('Sales Revenue (₱)', color='#3b82f6', fontsize=9)
             ax2.set_ylabel('Items Sold', color='#94a3b8', fontsize=9)
             ax.tick_params(axis='y', labelcolor='#3b82f6', labelsize=8)
             ax2.tick_params(axis='y', labelcolor='#94a3b8', labelsize=8)
-            ax.tick_params(axis='x', labelsize=8, rotation=45)
+            
+            # Set x-axis labels
+            ax.set_xticks(range(len(labels)))
+            ax.set_xticklabels(labels, rotation=45, ha='right', fontsize=8)
+            
+            # Set axis limits
+            ax.set_xlim(-0.5, len(labels) - 0.5)
+            max_revenue = max(revenue) if revenue else 1
+            max_items = max(items_sold) if items_sold else 1
+            ax.set_ylim(0, max_revenue * 1.1)
+            ax2.set_ylim(0, max_items * 1.2)
+            
+            ax.grid(True, alpha=0.3)
+            ax.set_facecolor('white')
+            
+            # Animation function
+            frames = 40  # Number of frames for animation
+            
+            def animate(frame):
+                # Calculate progress (0 to 1)
+                progress = (frame + 1) / frames
+                
+                # Animate line - show points progressively
+                num_points = max(1, int(progress * len(labels)))
+                line.set_data(range(num_points), revenue[:num_points])
+                
+                # Animate bars - grow height
+                for i, bar in enumerate(bars):
+                    bar.set_height(items_sold[i] * progress)
+                
+                return [line] + list(bars)
+            
+            # Create animation and store reference
+            self.line_anim = FuncAnimation(fig, animate, frames=frames, 
+                                          interval=25, blit=True, repeat=False)
             
         else:
             ax.text(0.5, 0.5, 'No sales data available', ha='center', va='center', 
                    transform=ax.transAxes, fontsize=12, color='#6b7280')
+            ax.set_facecolor('white')
         
-        ax.grid(True, alpha=0.3)
-        ax.set_facecolor('white')
         fig.tight_layout()
-        
-        canvas = FigureCanvasTkAgg(fig, master=chart_frame)
         canvas.draw()
         canvas.get_tk_widget().pack(fill='both', expand=True)
 
     def create_category_sales_chart(self, parent):
-        """Create sales by category pie chart"""
+        """Create sales by category pie chart with progressive drawing animation"""
         # Header
         header_frame = ttk.Frame(parent, style='Card.TFrame')
         header_frame.pack(fill='x', padx=20, pady=(15, 0))
@@ -187,11 +222,14 @@ class StatisticsModule:
         chart_frame.pack(fill='both', expand=True, padx=20, pady=(10, 15))
         
         # Create matplotlib figure
-        fig = plt.Figure(figsize=(4, 3), dpi=80, facecolor='white')
+        fig = plt.Figure(figsize=(4, 5), dpi=100, facecolor='white')  
         ax = fig.add_subplot(111)
         
         # Get category sales data
         category_data = self.main_app.get_category_sales_data()
+        
+        canvas = FigureCanvasTkAgg(fig, master=chart_frame)
+        canvas.get_tk_widget().pack(fill='both', expand=True)
         
         if category_data:
             categories = [row[0] if row[0] else 'Other' for row in category_data]
@@ -199,23 +237,93 @@ class StatisticsModule:
             
             colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
             
-            wedges, texts, autotexts = ax.pie(amounts, labels=categories, autopct='%1.1f%%',
-                                             colors=colors[:len(categories)], startangle=90)
+            # Calculate cumulative percentages for each slice
+            total = sum(amounts)
+            percentages = [(amount / total) * 100 for amount in amounts]
+            cumulative_percentages = []
+            cumsum = 0
+            for p in percentages:
+                cumsum += p
+                cumulative_percentages.append(cumsum)
             
-            for autotext in autotexts:
-                autotext.set_color('white')
-                autotext.set_fontsize(8)
-                autotext.set_weight('bold')
+            # Animation function - PROGRESSIVE CIRCLE DRAWING
+            frames = 50  # Number of frames for animation
+            
+            def animate(frame):
+                # Calculate progress (0 to 100%)
+                progress = ((frame + 1) / frames) * 100
+                
+                # Clear the axes
+                ax.clear()
+                
+                # Calculate which slices to show based on progress
+                visible_amounts = []
+                visible_labels = []
+                visible_colors = []
+                
+                for i, (amount, label, color, cum_pct) in enumerate(zip(amounts, categories, colors[:len(amounts)], cumulative_percentages)):
+                    if i == 0:
+                        prev_cum = 0
+                    else:
+                        prev_cum = cumulative_percentages[i-1]
+                    
+                    if progress >= cum_pct:
+                        # Fully visible
+                        visible_amounts.append(amount)
+                        visible_labels.append(label)
+                        visible_colors.append(color)
+                    elif progress > prev_cum:
+                        # Partially visible - calculate partial amount
+                        slice_percentage = percentages[i]
+                        slice_progress = (progress - prev_cum) / slice_percentage
+                        partial_amount = amount * slice_progress
+                        visible_amounts.append(partial_amount)
+                        visible_labels.append(label)
+                        visible_colors.append(color)
+                
+                if visible_amounts and sum(visible_amounts) > 0:
+                    try:
+                        # Draw pie chart with visible slices
+                        wedges, texts, autotexts = ax.pie(
+                            visible_amounts, 
+                            labels=visible_labels,
+                            autopct=lambda pct: f'{pct:.1f}%' if progress > 30 else '',
+                            colors=visible_colors, 
+                            startangle=90,
+                            counterclock=False  # Draw clockwise
+                        )
+                        
+                        # Style the text
+                        for autotext in autotexts:
+                            autotext.set_color('white')
+                            autotext.set_fontsize(8)
+                            autotext.set_weight('bold')
+                        
+                        ax.set_facecolor('white')
+                        
+                    except Exception as e:
+                        print(f"Animation error: {e}")
+                
+                canvas.draw_idle()
+                return []
+            
+            # Create animation and store reference
+            self.pie_anim = FuncAnimation(
+                fig, 
+                animate, 
+                frames=frames, 
+                interval=30,  # 30ms between frames
+                blit=False,   # blit=False is important for pie charts
+                repeat=False  # Play once
+            )
+            
         else:
             ax.text(0.5, 0.5, 'No sales data available', ha='center', va='center', 
                    transform=ax.transAxes, fontsize=12, color='#6b7280')
+            ax.set_facecolor('white')
+            canvas.draw()
         
-        ax.set_facecolor('white')
         fig.tight_layout()
-        
-        canvas = FigureCanvasTkAgg(fig, master=chart_frame)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill='both', expand=True)
 
     def create_top_buyers_table(self, parent):
         """Create top buyers table"""

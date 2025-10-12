@@ -61,18 +61,20 @@ class InventoryModule:
         table_frame = ttk.Frame(self.frame, style='Content.TFrame')
         table_frame.pack(fill='both', expand=True, padx=30, pady=20)
         
-        # Create treeview
+        # Create treeview (ID column hidden but stored)
         columns = ('ID', 'Name', 'Price', 'Stock', 'Category', 'Product ID')
-        self.inventory_tree = ttk.Treeview(table_frame, columns=columns, show='headings', style='Modern.Treeview')
+        display_columns = ('Name', 'Price', 'Stock', 'Category', 'Product ID')
+        self.inventory_tree = ttk.Treeview(table_frame, columns=columns, displaycolumns=display_columns, show='headings', style='Modern.Treeview')
         
-        for col in columns:
+        # Set headings and alignment for displayed columns
+        for col in display_columns:
             self.inventory_tree.heading(col, text=col)
-            if col == 'ID':
-                self.inventory_tree.column(col, width=50)
-            elif col == 'Name':
-                self.inventory_tree.column(col, width=200)
+            if col == 'Name':
+                self.inventory_tree.column(col, width=250, anchor='center')
+            elif col == 'Product ID':
+                self.inventory_tree.column(col, width=150, anchor='center')
             else:
-                self.inventory_tree.column(col, width=120)
+                self.inventory_tree.column(col, width=120, anchor='center')
 
         # Scrollbar
         scrollbar = ttk.Scrollbar(table_frame, orient='vertical', command=self.inventory_tree.yview)
@@ -137,25 +139,70 @@ class InventoryModule:
                                              font=('Arial', 24, 'bold'), foreground="#000000")
         self.total_products_label.pack(pady=(0, 15))
 
-    def update_statistics(self):
-        """Update the statistics display"""
+    def update_statistics(self, search_term=None):
+        """Update the statistics display based on current view (all products or search results)"""
         try:
-            # Calculate total stock units
-            self.main_app.cursor.execute('SELECT SUM(stock) FROM products')
-            total_stock = self.main_app.cursor.fetchone()[0] or 0
-            
-            # Calculate total inventory value (stock * price)
-            self.main_app.cursor.execute('SELECT SUM(stock * price) FROM products')
-            total_value = self.main_app.cursor.fetchone()[0] or 0
-            
-            # Calculate total revenue from sales (using 'total' column from sales table)
-            # Only count positive quantities (actual sales, not returns)
-            self.main_app.cursor.execute('SELECT SUM(total) FROM sales WHERE quantity > 0')
-            total_revenue = self.main_app.cursor.fetchone()[0] or 0
-            
-            # Count total products
-            self.main_app.cursor.execute('SELECT COUNT(*) FROM products')
-            total_products = self.main_app.cursor.fetchone()[0] or 0
+            if search_term and search_term.strip():
+                # Statistics for filtered/searched products only
+                search_pattern = f"%{search_term}%"
+                
+                # Calculate total stock units for filtered products
+                self.main_app.cursor.execute('''
+                    SELECT SUM(stock) FROM products 
+                    WHERE name LIKE ? OR product_id LIKE ?
+                ''', (search_pattern, search_pattern))
+                total_stock = self.main_app.cursor.fetchone()[0] or 0
+                
+                # Calculate total inventory value for filtered products
+                self.main_app.cursor.execute('''
+                    SELECT SUM(stock * price) FROM products 
+                    WHERE name LIKE ? OR product_id LIKE ?
+                ''', (search_pattern, search_pattern))
+                total_value = self.main_app.cursor.fetchone()[0] or 0
+                
+                # Get product IDs of filtered products for revenue calculation
+                self.main_app.cursor.execute('''
+                    SELECT product_id FROM products 
+                    WHERE name LIKE ? OR product_id LIKE ?
+                ''', (search_pattern, search_pattern))
+                filtered_product_ids = [row[0] for row in self.main_app.cursor.fetchall()]
+                
+                # Calculate total revenue for filtered products only
+                if filtered_product_ids:
+                    placeholders = ','.join('?' * len(filtered_product_ids))
+                    self.main_app.cursor.execute(f'''
+                        SELECT SUM(total) FROM sales 
+                        WHERE quantity > 0 AND product_id IN ({placeholders})
+                    ''', filtered_product_ids)
+                    total_revenue = self.main_app.cursor.fetchone()[0] or 0
+                else:
+                    total_revenue = 0
+                
+                # Count filtered products
+                self.main_app.cursor.execute('''
+                    SELECT COUNT(*) FROM products 
+                    WHERE name LIKE ? OR product_id LIKE ?
+                ''', (search_pattern, search_pattern))
+                total_products = self.main_app.cursor.fetchone()[0] or 0
+                
+            else:
+                # Statistics for all products (default behavior)
+                # Calculate total stock units
+                self.main_app.cursor.execute('SELECT SUM(stock) FROM products')
+                total_stock = self.main_app.cursor.fetchone()[0] or 0
+                
+                # Calculate total inventory value (stock * price)
+                self.main_app.cursor.execute('SELECT SUM(stock * price) FROM products')
+                total_value = self.main_app.cursor.fetchone()[0] or 0
+                
+                # Calculate total revenue from sales (using 'total' column from sales table)
+                # Only count positive quantities (actual sales, not returns)
+                self.main_app.cursor.execute('SELECT SUM(total) FROM sales WHERE quantity > 0')
+                total_revenue = self.main_app.cursor.fetchone()[0] or 0
+                
+                # Count total products
+                self.main_app.cursor.execute('SELECT COUNT(*) FROM products')
+                total_products = self.main_app.cursor.fetchone()[0] or 0
             
             # Update labels
             self.total_stock_label.config(text=f"{total_stock:,}")
@@ -216,12 +263,11 @@ class InventoryModule:
                 
                 # Refresh display (respects current search)
                 if self.search_var and self.search_var.get().strip():
-                    self.search_products(self.search_var.get().strip())
+                    search_term = self.search_var.get().strip()
+                    self.search_products(search_term)
+                    self.update_statistics(search_term)
                 else:
                     self.refresh_products()
-                
-                # Update statistics
-                self.update_statistics()
                 
                 # Refresh stock history if it's currently displayed
                 self.refresh_stock_history_if_visible()
@@ -242,8 +288,12 @@ class InventoryModule:
         search_term = self.search_var.get().strip()
         if search_term:
             self.search_products(search_term)
+            # Update statistics for filtered products
+            self.update_statistics(search_term)
         else:
             self.refresh_products()
+            # Update statistics for all products
+            self.update_statistics()
 
     def search_products(self, search_term):
         """Search products by name or product ID"""
@@ -275,7 +325,7 @@ class InventoryModule:
                         product[5]   # product_id
                     ))
                 
-                print(f"Found {len(products)} products matching '{search_term}'") 
+                print(f"Found {len(products)} products matching '{search_term}'")
                 
             except Exception as e:
                 print(f"Error searching products: {e}")
@@ -372,12 +422,11 @@ class InventoryModule:
                 
                 # Refresh inventory display (respects current search)
                 if self.search_var and self.search_var.get().strip():
-                    self.search_products(self.search_var.get().strip())
+                    search_term = self.search_var.get().strip()
+                    self.search_products(search_term)
+                    self.update_statistics(search_term)
                 else:
                     self.refresh_products()
-                
-                # Update statistics
-                self.update_statistics()
                 
                 # Refresh stock history if it's currently displayed
                 self.refresh_stock_history_if_visible()
@@ -455,12 +504,11 @@ class InventoryModule:
                 
                 # Refresh display (respects current search)
                 if self.search_var and self.search_var.get().strip():
-                    self.search_products(self.search_var.get().strip())
+                    search_term = self.search_var.get().strip()
+                    self.search_products(search_term)
+                    self.update_statistics(search_term)
                 else:
                     self.refresh_products()
-                
-                # Update statistics
-                self.update_statistics()
                 
                 # Refresh stock history if it's currently displayed
                 self.refresh_stock_history_if_visible()
@@ -506,12 +554,11 @@ class InventoryModule:
                 
                 # Refresh display 
                 if self.search_var and self.search_var.get().strip():
-                    self.search_products(self.search_var.get().strip())
+                    search_term = self.search_var.get().strip()
+                    self.search_products(search_term)
+                    self.update_statistics(search_term)
                 else:
                     self.refresh_products()
-                
-                # Update statistics
-                self.update_statistics()
                 
                 # Refresh stock history if it's currently displayed
                 self.refresh_stock_history_if_visible()
@@ -559,7 +606,9 @@ class InventoryModule:
         """Refresh the inventory interface"""
         if self.frame:
             if self.search_var and self.search_var.get().strip():
-                self.search_products(self.search_var.get().strip())
+                search_term = self.search_var.get().strip()
+                self.search_products(search_term)
+                self.update_statistics(search_term)
             else:
                 self.refresh_products()
             return self.frame

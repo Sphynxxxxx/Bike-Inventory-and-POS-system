@@ -339,20 +339,20 @@ class ServicesModule:
         self.services_tree = ttk.Treeview(table_frame, columns=columns, show='headings', 
                                         style='Modern.Treeview')
         
-        # Configure columns
+        # Configure columns with CENTER alignment
         column_widths = {
             'ID': 50,
-            'Service ID': 80,
+            'Service ID': 100,
             'Name': 200,
-            'Category': 100,
+            'Category': 120,
             'Price': 100,
             'Duration': 120,
             'Status': 80
         }
         
         for col in columns:
-            self.services_tree.heading(col, text=col)
-            self.services_tree.column(col, width=column_widths.get(col, 100))
+            self.services_tree.heading(col, text=col, anchor='center')  # Center-align header
+            self.services_tree.column(col, width=column_widths.get(col, 100), anchor='center')  # Center-align content
         
         # Hide ID column
         self.services_tree.column('ID', width=0, stretch=False)
@@ -413,28 +413,27 @@ class ServicesModule:
         history_table_frame.pack(fill='both', expand=True, padx=20, pady=(0, 20))
         
         # Create treeview for service history
-        history_columns = ('ID', 'Service ID', 'Date', 'Customer', 'Service', 'Contact', 
-                        'Scheduled', 'Status', 'Payment', 'Price')
+        history_columns = ('ID', 'Booking ID', 'Date', 'Customer', 'Service', 'Contact', 
+                        'Status', 'Payment', 'Price')
         self.history_tree = ttk.Treeview(history_table_frame, columns=history_columns, 
                                         show='headings', style='Modern.Treeview')
         
-        # Configure history columns
+        # Configure history columns with CENTER alignment
         history_widths = {
             'ID': 50,
-            'Service ID': 100,
+            'Booking ID': 100,
             'Date': 100,
-            'Customer': 120,
-            'Service': 150,
-            'Contact': 100,
-            'Scheduled': 120,
-            'Status': 80,
-            'Payment': 80,
+            'Customer': 150,
+            'Service': 180,
+            'Contact': 120,
+            'Status': 100,
+            'Payment': 100,
             'Price': 100
         }
         
         for col in history_columns:
-            self.history_tree.heading(col, text=col)
-            self.history_tree.column(col, width=history_widths.get(col, 100))
+            self.history_tree.heading(col, text=col, anchor='center')  # Center-align header
+            self.history_tree.column(col, width=history_widths.get(col, 100), anchor='center')  # Center-align content
         
         # Hide ID column
         self.history_tree.column('ID', width=0, stretch=False)
@@ -529,12 +528,12 @@ class ServicesModule:
             # Get status filter
             status_filter = self.status_filter_var.get()
             
-            # Build query based on search and filter
+            # Build query based on search and filter - REMOVED scheduled_date from SELECT
             if status_filter == 'All Status':
                 if search_term:
                     self.main_app.cursor.execute('''
                         SELECT id, booking_id, booking_date, customer_name, service_name, 
-                            customer_contact, scheduled_date, status, payment_status, price
+                            customer_contact, status, payment_status, price
                         FROM service_bookings 
                         WHERE LOWER(customer_name) LIKE ? OR LOWER(booking_id) LIKE ? OR LOWER(service_name) LIKE ?
                         ORDER BY booking_date DESC
@@ -542,7 +541,7 @@ class ServicesModule:
                 else:
                     self.main_app.cursor.execute('''
                         SELECT id, booking_id, booking_date, customer_name, service_name, 
-                            customer_contact, scheduled_date, status, payment_status, price
+                            customer_contact, status, payment_status, price
                         FROM service_bookings 
                         ORDER BY booking_date DESC
                     ''')
@@ -550,7 +549,7 @@ class ServicesModule:
                 if search_term:
                     self.main_app.cursor.execute('''
                         SELECT id, booking_id, booking_date, customer_name, service_name, 
-                            customer_contact, scheduled_date, status, payment_status, price
+                            customer_contact, status, payment_status, price
                         FROM service_bookings 
                         WHERE status = ? AND (LOWER(customer_name) LIKE ? OR LOWER(booking_id) LIKE ? OR LOWER(service_name) LIKE ?)
                         ORDER BY booking_date DESC
@@ -558,7 +557,7 @@ class ServicesModule:
                 else:
                     self.main_app.cursor.execute('''
                         SELECT id, booking_id, booking_date, customer_name, service_name, 
-                            customer_contact, scheduled_date, status, payment_status, price
+                            customer_contact, status, payment_status, price
                         FROM service_bookings 
                         WHERE status = ?
                         ORDER BY booking_date DESC
@@ -578,8 +577,6 @@ class ServicesModule:
                 else:
                     formatted_date = str(booking_date)[:10]
                 
-                scheduled = booking[6] if booking[6] else 'TBD'
-                
                 self.history_tree.insert('', 'end', values=(
                     booking[0],  # id (hidden)
                     booking[1],  # booking_id
@@ -587,10 +584,9 @@ class ServicesModule:
                     booking[3],  # customer_name
                     booking[4],  # service_name
                     booking[5] or 'N/A',  # customer_contact
-                    scheduled,   # scheduled_date
-                    booking[7],  # status
-                    booking[8],  # payment_status
-                    f"₱{booking[9]:.2f}"  # price
+                    booking[6],  # status
+                    booking[7],  # payment_status
+                    f"₱{booking[8]:.2f}"  # price
                 ))
                 
         except Exception as e:
@@ -652,14 +648,14 @@ class ServicesModule:
             if status_filter == 'All Status':
                 self.main_app.cursor.execute('''
                     SELECT id, booking_id, booking_date, customer_name, service_name, 
-                           customer_contact, scheduled_date, status, payment_status, price
+                        customer_contact, status, payment_status, price
                     FROM service_bookings 
                     ORDER BY booking_date DESC
                 ''')
             else:
                 self.main_app.cursor.execute('''
                     SELECT id, booking_id, booking_date, customer_name, service_name, 
-                           customer_contact, scheduled_date, status, payment_status, price
+                        customer_contact, status, payment_status, price
                     FROM service_bookings 
                     WHERE status = ?
                     ORDER BY booking_date DESC
@@ -679,8 +675,6 @@ class ServicesModule:
                 else:
                     formatted_date = str(booking_date)[:10]
                 
-                scheduled = booking[6] if booking[6] else 'TBD'
-                
                 self.history_tree.insert('', 'end', values=(
                     booking[0],  # id (hidden)
                     booking[1],  # booking_id
@@ -688,10 +682,9 @@ class ServicesModule:
                     booking[3],  # customer_name
                     booking[4],  # service_name
                     booking[5] or 'N/A',  # customer_contact
-                    scheduled,   # scheduled_date
-                    booking[7],  # status
-                    booking[8],  # payment_status
-                    f"₱{booking[9]:.2f}"  # price
+                    booking[6],  # status
+                    booking[7],  # payment_status
+                    f"₱{booking[8]:.2f}"  # price
                 ))
                 
         except Exception as e:
@@ -714,7 +707,7 @@ class ServicesModule:
         """Book the selected service - FIXED VERSION"""
         selection = self.services_tree.selection()
         if not selection:
-            messagebox.showwarning("Warning", "Please select a services.")
+            messagebox.showwarning("Warning", "Please select a service.")
             return
         
         try:
@@ -729,7 +722,7 @@ class ServicesModule:
             # Clean and convert price
             price = float(price_str.replace('₱', '').replace(',', ''))
             
-            print(f"Services: ID={service_db_id}, Name={service_name}, Price={price}")
+            print(f"Service: ID={service_db_id}, Name={service_name}, Price={price}")
             
             # Open booking dialog with corrected parameters
             self.open_booking_dialog(service_db_id, service_name, price)
@@ -739,16 +732,16 @@ class ServicesModule:
             messagebox.showerror("Error", f"Failed to initiate booking: {str(e)}")
     
     def open_booking_dialog(self, service_id, service_name, price):
-        """Open service booking dialog with scrollable interface - FIXED VERSION"""
+        """Open service booking dialog - SIMPLIFIED VERSION with fixed height"""
         try:
-            # Create dialog window
+            # Create dialog window with smaller height
             dialog = tk.Toplevel()
-            dialog.title("Services")
-            dialog.geometry("480x650")
+            dialog.title("Book Service")
+            dialog.geometry("480x500")  
             dialog.configure(bg='white')
             dialog.resizable(False, False)
-            dialog.minsize(480, 650)
-            dialog.maxsize(480, 650)
+            dialog.minsize(480, 350)  
+            dialog.maxsize(480, 800) 
             
             # Make dialog modal
             dialog.transient(self.main_app.root if hasattr(self.main_app, 'root') else None)
@@ -757,47 +750,21 @@ class ServicesModule:
             # Center the dialog
             dialog.update_idletasks()
             x = (dialog.winfo_screenwidth() // 2) - (480 // 2)
-            y = (dialog.winfo_screenheight() // 2) - (650 // 2)
-            dialog.geometry(f"480x650+{x}+{y}")
+            y = (dialog.winfo_screenheight() // 2) - (500 // 2)  # Changed from 400 to 350
+            dialog.geometry(f"480x500+{x}+{y}")
             
-            # Create main container
-            main_container = tk.Frame(dialog, bg='white')
-            main_container.pack(fill='both', expand=True, padx=5, pady=5)
-            
-            # Create canvas and scrollbar for scrollable content
-            canvas = tk.Canvas(main_container, bg='white', highlightthickness=0, width=460)
-            scrollbar = ttk.Scrollbar(main_container, orient="vertical", command=canvas.yview)
-            scrollable_frame = tk.Frame(canvas, bg='white')
-            
-            # Configure canvas width
-            def configure_canvas(event):
-                canvas.configure(scrollregion=canvas.bbox("all"))
-                # Ensure the scrollable_frame fills the canvas width
-                canvas_width = event.width
-                canvas.itemconfig(canvas_window, width=canvas_width)
-            
-            canvas.bind('<Configure>', configure_canvas)
-            
-            # Create window in canvas
-            canvas_window = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-            canvas.configure(yscrollcommand=scrollbar.set)
-            
-            # Pack canvas and scrollbar
-            canvas.pack(side="left", fill="both", expand=True)
-            scrollbar.pack(side="right", fill="y")
-            
-            # Content frame with controlled width
-            content_frame = tk.Frame(scrollable_frame, bg='white', padx=15, pady=15)
-            content_frame.pack(fill='x')
+            # Main content frame
+            content_frame = tk.Frame(dialog, bg='white', padx=30, pady=20)  # Reduced pady
+            content_frame.pack(fill='both', expand=True)
             
             # Title
-            title_label = tk.Label(content_frame, text=f"Services: {service_name}", 
+            title_label = tk.Label(content_frame, text=f"Book Service: {service_name}", 
                                 font=('Arial', 16, 'bold'), bg='white', fg='#1e293b')
-            title_label.pack(pady=(0, 25))
+            title_label.pack(pady=(0, 20))  # Reduced bottom padding
             
             # Service details card
             details_card = tk.Frame(content_frame, bg='#f8fafc', relief='solid', bd=1)
-            details_card.pack(fill='x', pady=(0, 20))
+            details_card.pack(fill='x', pady=(0, 15))  # Reduced bottom padding
             
             details_header = tk.Frame(details_card, bg='#3b82f6', height=35)
             details_header.pack(fill='x')
@@ -806,7 +773,7 @@ class ServicesModule:
             tk.Label(details_header, text="📋 Service Details", 
                     font=('Arial', 12, 'bold'), bg='#3b82f6', fg='white').pack(pady=8)
             
-            details_content = tk.Frame(details_card, bg='#f8fafc', padx=20, pady=15)
+            details_content = tk.Frame(details_card, bg='#f8fafc', padx=20, pady=12)  # Reduced padding
             details_content.pack(fill='x')
             
             tk.Label(details_content, text=f"Service: {service_name}", 
@@ -816,7 +783,7 @@ class ServicesModule:
             
             # Customer information card
             customer_card = tk.Frame(content_frame, bg='white', relief='solid', bd=1)
-            customer_card.pack(fill='x', pady=(0, 20))
+            customer_card.pack(fill='x', pady=(0, 15))  # Reduced bottom padding
             
             customer_header = tk.Frame(customer_card, bg='#10b981', height=35)
             customer_header.pack(fill='x')
@@ -825,7 +792,7 @@ class ServicesModule:
             tk.Label(customer_header, text="👤 Customer Information", 
                     font=('Arial', 12, 'bold'), bg='#10b981', fg='white').pack(pady=8)
             
-            customer_content = tk.Frame(customer_card, bg='white', padx=20, pady=20)
+            customer_content = tk.Frame(customer_card, bg='white', padx=20, pady=15)  # Reduced padding
             customer_content.pack(fill='x')
             
             # Customer Name (Required)
@@ -834,8 +801,8 @@ class ServicesModule:
             customer_var = tk.StringVar()
             customer_entry = tk.Entry(customer_content, textvariable=customer_var, 
                                     font=('Arial', 10), relief='solid', bd=1)
-            customer_entry.pack(fill='x', pady=(0, 12))
-            customer_entry.focus_set()  # Set focus to first field
+            customer_entry.pack(fill='x', pady=(0, 10))  # Reduced bottom padding
+            customer_entry.focus_set()
             
             # Contact Number
             tk.Label(customer_content, text="Contact Number:", 
@@ -843,67 +810,11 @@ class ServicesModule:
             contact_var = tk.StringVar()
             contact_entry = tk.Entry(customer_content, textvariable=contact_var, 
                                     font=('Arial', 10), relief='solid', bd=1)
-            contact_entry.pack(fill='x', pady=(0, 12))
+            contact_entry.pack(fill='x', pady=(0, 5))  # Reduced bottom padding
             
-            # Bike Details
-            tk.Label(customer_content, text="Bike Details:", 
-                    font=('Arial', 10, 'bold'), bg='white', fg='#374151').pack(anchor='w', pady=(0, 5))
-            bike_var = tk.StringVar()
-            bike_entry = tk.Entry(customer_content, textvariable=bike_var, 
-                                font=('Arial', 10), relief='solid', bd=1)
-            bike_entry.pack(fill='x', pady=(0, 8))
-            
-            # Scheduling card
-            schedule_card = tk.Frame(content_frame, bg='white', relief='solid', bd=1)
-            schedule_card.pack(fill='x', pady=(0, 20))
-            
-            schedule_header = tk.Frame(schedule_card, bg='#8b5cf6', height=35)
-            schedule_header.pack(fill='x')
-            schedule_header.pack_propagate(False)
-            
-            tk.Label(schedule_header, text="📅 Scheduling", 
-                    font=('Arial', 12, 'bold'), bg='#8b5cf6', fg='white').pack(pady=8)
-            
-            schedule_content = tk.Frame(schedule_card, bg='white', padx=20, pady=20)
-            schedule_content.pack(fill='x')
-            
-            # Preferred Date
-            tk.Label(schedule_content, text="Preferred Date (YYYY-MM-DD):", 
-                    font=('Arial', 10, 'bold'), bg='white', fg='#374151').pack(anchor='w', pady=(0, 5))
-            date_var = tk.StringVar(value=datetime.now().strftime('%Y-%m-%d'))
-            date_entry = tk.Entry(schedule_content, textvariable=date_var, 
-                                font=('Arial', 10), relief='solid', bd=1)
-            date_entry.pack(fill='x', pady=(0, 12))
-            
-            # Preferred Time
-            tk.Label(schedule_content, text="Preferred Time:", 
-                    font=('Arial', 10, 'bold'), bg='white', fg='#374151').pack(anchor='w', pady=(0, 5))
-            time_var = tk.StringVar(value='09:00 AM')
-            time_combo = ttk.Combobox(schedule_content, textvariable=time_var, 
-                                    font=('Arial', 10),
-                                    values=['09:00 AM', '10:00 AM', '11:00 AM', '01:00 PM', 
-                                            '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM'],
-                                    state='readonly')
-            time_combo.pack(fill='x', pady=(0, 12))
-            
-            # Notes
-            #tk.Label(schedule_content, text="Additional Notes:", 
-                    #font=('Arial', 10, 'bold'), bg='white', fg='#374151').pack(anchor='w', pady=(0, 5))
-            
-            #notes_frame = tk.Frame(schedule_content, bg='white')
-            #notes_frame.pack(fill='x', pady=(0, 8))
-            
-            #notes_text = tk.Text(notes_frame, height=4, wrap=tk.WORD, 
-                                #font=('Arial', 9), relief='solid', bd=1, bg='#f9fafb')
-            #notes_scrollbar = tk.Scrollbar(notes_frame, orient='vertical', command=notes_text.yview)
-            #notes_text.configure(yscrollcommand=notes_scrollbar.set)
-            
-            #notes_text.pack(side='left', fill='both', expand=True)
-            #notes_scrollbar.pack(side='right', fill='y')
-            
-            # Action buttons - Fixed at bottom
-            button_container = tk.Frame(dialog, bg='white')
-            button_container.pack(fill='x', side='bottom', padx=15, pady=15)
+            # Action buttons
+            button_container = tk.Frame(content_frame, bg='white')
+            button_container.pack(fill='x', pady=(15, 0))  # Reduced top padding
             
             def confirm_booking():
                 try:
@@ -916,18 +827,13 @@ class ServicesModule:
                     # Generate unique booking ID
                     booking_id = f"BK{datetime.now().strftime('%Y%m%d%H%M%S')}"
                     
-                    # Get notes text
-                    notes = notes_text.get('1.0', tk.END).strip()
-                    
                     # Insert booking into database
                     self.main_app.cursor.execute('''
                         INSERT INTO service_bookings 
-                        (booking_id, service_id, service_name, customer_name, customer_contact,
-                        bike_details, scheduled_date, scheduled_time, notes, price)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        (booking_id, service_id, service_name, customer_name, customer_contact, price)
+                        VALUES (?, ?, ?, ?, ?, ?)
                     ''', (booking_id, service_id, service_name, customer_var.get().strip(),
-                        contact_var.get().strip(), bike_var.get().strip(), 
-                        date_var.get(), time_var.get(), notes, price))
+                        contact_var.get().strip(), price))
                     
                     self.main_app.conn.commit()
                     
@@ -937,7 +843,6 @@ class ServicesModule:
                                     f"Booking ID: {booking_id}\n"
                                     f"Customer: {customer_var.get()}\n"
                                     f"Service: {service_name}\n"
-                                    f"Scheduled: {date_var.get()} at {time_var.get()}\n"
                                     f"Price: ₱{price:.2f}")
                     
                     # Close dialog and refresh history
@@ -945,8 +850,8 @@ class ServicesModule:
                     self.load_service_history()
                     
                 except Exception as e:
-                    print(f"Error confirming services: {e}")
-                    messagebox.showerror("Error", f"Failed to service: {str(e)}")
+                    print(f"Error confirming booking: {e}")
+                    messagebox.showerror("Error", f"Failed to book service: {str(e)}")
             
             def cancel_booking():
                 dialog.destroy()
@@ -957,7 +862,7 @@ class ServicesModule:
                                 relief='flat', padx=20, pady=8, cursor='hand2')
             cancel_btn.pack(side='right', padx=(8, 0))
             
-            confirm_btn = tk.Button(button_container, text="Confirm", command=confirm_booking,
+            confirm_btn = tk.Button(button_container, text="Confirm Booking", command=confirm_booking,
                                 bg='#3b82f6', fg='white', font=('Arial', 10, 'bold'), 
                                 relief='flat', padx=20, pady=8, cursor='hand2')
             confirm_btn.pack(side='right')
@@ -966,27 +871,9 @@ class ServicesModule:
             dialog.bind('<Return>', lambda e: confirm_booking())
             dialog.bind('<Escape>', lambda e: cancel_booking())
             
-            # Enable mouse wheel scrolling
-            def _on_mousewheel(event):
-                canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-            
-            def bind_mousewheel(event):
-                canvas.bind_all("<MouseWheel>", _on_mousewheel)
-            
-            def unbind_mousewheel(event):
-                canvas.unbind_all("<MouseWheel>")
-            
-            # Bind mouse wheel events
-            canvas.bind('<Enter>', bind_mousewheel)
-            canvas.bind('<Leave>', unbind_mousewheel)
-            
-            # Update scroll region after everything is packed
-            dialog.update_idletasks()
-            canvas.configure(scrollregion=canvas.bbox("all"))
-            
         except Exception as e:
             print(f"Error creating booking dialog: {e}")
-            messagebox.showerror("Error", f"Failed to open services dialog: {str(e)}")
+            messagebox.showerror("Error", f"Failed to open booking dialog: {str(e)}")
     
     def add_service(self):
         """Add a new service"""
@@ -1097,7 +984,7 @@ class ServicesModule:
         """Update status and payment status of selected booking with improved UI"""
         selection = self.history_tree.selection()
         if not selection:
-            messagebox.showwarning("Warning", "Please select a services to update.")
+            messagebox.showwarning("Warning", "Please select a booking to update.")
             return
         
         item = self.history_tree.item(selection[0])
@@ -1115,7 +1002,7 @@ class ServicesModule:
         try:
             # Create dialog window
             dialog = tk.Toplevel()
-            dialog.title("Update Services Status")
+            dialog.title("Update Booking Status")
             dialog.geometry("520x650")
             dialog.configure(bg='#f8fafc')
             dialog.resizable(True, True)
@@ -1161,7 +1048,7 @@ class ServicesModule:
             content.pack(fill='x')
             
             # Title
-            title_label = tk.Label(content, text="Update Services Status", 
+            title_label = tk.Label(content, text="Update Booking Status", 
                                 font=('Arial', 18, 'bold'), bg='#f8fafc', fg='#1e293b')
             title_label.pack(pady=(0, 20))
             
@@ -1357,7 +1244,7 @@ class ServicesModule:
                                 bg='#ef4444', fg='white', font=('Arial', 9, 'bold'), 
                                 relief='flat', padx=12, pady=6, cursor='hand2', width=18)
             cancel_btn.grid(row=1, column=1, padx=3, pady=3)
-            
+
             # Fixed action buttons at bottom
             button_container = tk.Frame(dialog, bg='#f8fafc')
             button_container.pack(fill='x', side='bottom', padx=15, pady=15)
@@ -1546,7 +1433,7 @@ class ServicesModule:
                 
                 # Create detailed information dialog
                 detail_dialog = tk.Toplevel()
-                detail_dialog.title(f"Services Details - {booking_id}")
+                detail_dialog.title(f"Booking Details - {booking_id}")
                 detail_dialog.geometry("520x650")
                 detail_dialog.configure(bg='#f8fafc')
                 detail_dialog.resizable(True, True)
@@ -1592,7 +1479,7 @@ class ServicesModule:
                 content.pack(fill='x')
                 
                 # Title
-                title_label = tk.Label(content, text=f"Services Details", 
+                title_label = tk.Label(content, text=f"Booking Details", 
                                     font=('Arial', 18, 'bold'), bg='#f8fafc', fg='#1e293b')
                 title_label.pack(pady=(0, 20))
                 
@@ -1625,7 +1512,6 @@ class ServicesModule:
                 details_grid = [
                     ("Customer Name:", booking[4]),  # customer_name
                     ("Contact Number:", booking[5] or 'Not provided'),  # customer_contact
-                    ("Bike Details:", booking[6] or 'Not specified'),  # bike_details
                 ]
                 
                 for i, (label, value) in enumerate(details_grid):
@@ -1822,7 +1708,7 @@ class ServicesModule:
                 
         except Exception as e:
             print(f"Error in view_booking_details: {e}")
-            messagebox.showerror("Error", f"Failed to load services details: {str(e)}")
+            messagebox.showerror("Error", f"Failed to load booking details: {str(e)}")
             import traceback
             traceback.print_exc()
     
