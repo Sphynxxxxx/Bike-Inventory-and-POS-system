@@ -167,7 +167,7 @@ class StatisticsModule:
             
             # Set x-axis labels
             ax.set_xticks(range(len(labels)))
-            ax.set_xticklabels(labels, rotation=45, ha='right', fontsize=8)
+            ax.set_xticklabels(labels, rotation=0, ha='center', fontsize=8)
             
             # Set axis limits
             ax.set_xlim(-0.5, len(labels) - 0.5)
@@ -333,23 +333,32 @@ class StatisticsModule:
         
         ttk.Label(header_frame, text="Top Buyers", style='SectionTitle.TLabel').pack(side='left')
         
-        # Table
+        # Table with scrollbar
         table_frame = ttk.Frame(parent, style='Card.TFrame')
         table_frame.pack(fill='both', expand=True, padx=20, pady=(0, 15))
         
+        # Create scrollbar
+        scrollbar = ttk.Scrollbar(table_frame, orient='vertical')
+        scrollbar.pack(side='right', fill='y')
+        
         columns = ('Rank', 'Customer', 'Purchases', 'Total Amount')
-        tree = ttk.Treeview(table_frame, columns=columns, show='headings', style='Dashboard.Treeview', height=8)
+        tree = ttk.Treeview(table_frame, columns=columns, show='headings', 
+                        style='Dashboard.Treeview', height=8,
+                        yscrollcommand=scrollbar.set)
         
-        # Configure columns with CENTER alignment
-        tree.heading('Rank', text='#', anchor='center')
-        tree.heading('Customer', text='Customer', anchor='center')
-        tree.heading('Purchases', text='Purchases', anchor='center')
-        tree.heading('Total Amount', text='Total Amount', anchor='center')
+        # Configure scrollbar
+        scrollbar.config(command=tree.yview)
         
-        tree.column('Rank', width=30, anchor='center')
-        tree.column('Customer', width=120, anchor='center')
-        tree.column('Purchases', width=80, anchor='center')
-        tree.column('Total Amount', width=100, anchor='center')
+        # Configure columns
+        tree.heading('Rank', text='#', anchor='w')
+        tree.heading('Customer', text='Customer', anchor='w')
+        tree.heading('Purchases', text='Purchases', anchor='w')
+        tree.heading('Total Amount', text='Total Amount', anchor='w')
+        
+        tree.column('Rank', width=30, anchor='w')
+        tree.column('Customer', width=120, anchor='w')
+        tree.column('Purchases', width=80, anchor='w')
+        tree.column('Total Amount', width=100, anchor='w')
         
         # Get top buyers data
         top_buyers = self.main_app.get_top_buyers()
@@ -361,7 +370,7 @@ class StatisticsModule:
                 f"₱{buyer[2]:,.2f}"
             ))
         
-        tree.pack(fill='both', expand=True)
+        tree.pack(side='left', fill='both', expand=True)
     
 
     def create_product_performance_table(self, parent):
@@ -372,23 +381,32 @@ class StatisticsModule:
         
         ttk.Label(header_frame, text="Top Products", style='SectionTitle.TLabel').pack(side='left')
         
-        # Table
+        # Table with scrollbar
         table_frame = ttk.Frame(parent, style='Card.TFrame')
         table_frame.pack(fill='both', expand=True, padx=20, pady=(0, 15))
         
+        # Create scrollbar
+        scrollbar = ttk.Scrollbar(table_frame, orient='vertical')
+        scrollbar.pack(side='right', fill='y')
+        
         columns = ('Rank', 'Product', 'Sold', 'Revenue')
-        tree = ttk.Treeview(table_frame, columns=columns, show='headings', style='Dashboard.Treeview', height=8)
+        tree = ttk.Treeview(table_frame, columns=columns, show='headings', 
+                        style='Dashboard.Treeview', height=8,
+                        yscrollcommand=scrollbar.set)
         
-        # Configure columns with CENTER alignment
-        tree.heading('Rank', text='#', anchor='center')
-        tree.heading('Product', text='Product', anchor='center')
-        tree.heading('Sold', text='Sold', anchor='center')
-        tree.heading('Revenue', text='Revenue', anchor='center')
+        # Configure scrollbar
+        scrollbar.config(command=tree.yview)
         
-        tree.column('Rank', width=30, anchor='center')
-        tree.column('Product', width=120, anchor='center')
-        tree.column('Sold', width=60, anchor='center')
-        tree.column('Revenue', width=100, anchor='center')
+        # Configure columns
+        tree.heading('Rank', text='#', anchor='e')
+        tree.heading('Product', text='Product', anchor='e')
+        tree.heading('Sold', text='Sold', anchor='e')
+        tree.heading('Revenue', text='Revenue', anchor='e')
+        
+        tree.column('Rank', width=30, anchor='e')
+        tree.column('Product', width=120, anchor='e')
+        tree.column('Sold', width=60, anchor='e')
+        tree.column('Revenue', width=100, anchor='e')
         
         # Get top products data
         top_products = self.main_app.get_top_products()
@@ -400,7 +418,7 @@ class StatisticsModule:
                 f"₱{product[2]:,.2f}"
             ))
         
-        tree.pack(fill='both', expand=True)
+        tree.pack(side='left', fill='both', expand=True)
 
     def refresh_statistics(self):
         """Refresh statistics interface"""
