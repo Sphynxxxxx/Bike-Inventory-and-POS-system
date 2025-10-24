@@ -2,6 +2,8 @@ import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 from datetime import datetime
 import sqlite3
+import matplotlib.animation as animation
+from matplotlib.animation import FuncAnimation
 
 class ServiceDialog:
     def __init__(self, parent, title, service_data=None):
@@ -819,7 +821,7 @@ class ServicesModule:
         scrollbar.pack(side='right', fill='y', pady=(0, 20))
 
     def create_service_daily_charts(self, data):
-        """Create daily service sales charts"""
+        """Create animated daily service sales charts"""
         if not data:
             self.show_no_service_data_message(self.service_charts_frame, "No daily service data available for charts")
             return
@@ -827,6 +829,7 @@ class ServicesModule:
         try:
             import matplotlib.pyplot as plt
             from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+            import matplotlib.animation as animation
             
             # Reverse data for chronological order
             data.reverse()
@@ -839,20 +842,72 @@ class ServicesModule:
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
             fig.suptitle('Daily Service Sales Analysis (Last 30 Days)', fontsize=14, fontweight='bold')
             
-            # Revenue chart
-            ax1.bar(dates, revenues, color='#00bcd4', alpha=0.7)
+            # Initialize empty bars
+            revenue_bars = ax1.bar([], [], color='#00bcd4', alpha=0.7)
+            service_bars = ax2.bar([], [], color='#4caf50', alpha=0.7)
+            
+            # Set up axes
             ax1.set_title('Daily Service Revenue', fontweight='bold')
             ax1.set_ylabel('Revenue (₱)')
-            ax1.tick_params(axis='x', rotation=0)
+            ax1.set_xlim(-0.5, len(dates)-0.5)
+            ax1.set_ylim(0, max(revenues) * 1.1)
             ax1.grid(axis='y', alpha=0.3)
             
-            # Services count chart
-            ax2.bar(dates, services_count, color='#4caf50', alpha=0.7)
             ax2.set_title('Daily Services Completed', fontweight='bold')
             ax2.set_ylabel('Services Count')
             ax2.set_xlabel('Date')
-            ax2.tick_params(axis='x', rotation=0)
+            ax2.set_xlim(-0.5, len(dates)-0.5)
+            ax2.set_ylim(0, max(services_count) * 1.1)
             ax2.grid(axis='y', alpha=0.3)
+            
+            # Rotate x-axis labels for better readability
+            ax1.tick_params(axis='x', rotation=0)
+            ax2.tick_params(axis='x', rotation=0)
+            
+            # Animation function
+            def animate(frame):
+                # Clear previous bars
+                ax1.clear()
+                ax2.clear()
+                
+                # Current data up to frame
+                current_dates = dates[:frame+1]
+                current_revenues = revenues[:frame+1]
+                current_services = services_count[:frame+1]
+                
+                # Create new bars
+                bars1 = ax1.bar(current_dates, current_revenues, color='#00bcd4', alpha=0.7)
+                bars2 = ax2.bar(current_dates, current_services, color='#4caf50', alpha=0.7)
+                
+                # Reapply styling
+                ax1.set_title('Daily Service Revenue', fontweight='bold')
+                ax1.set_ylabel('Revenue (₱)')
+                ax1.set_xlim(-0.5, len(dates)-0.5)
+                ax1.set_ylim(0, max(revenues) * 1.1)
+                ax1.grid(axis='y', alpha=0.3)
+                ax1.tick_params(axis='x', rotation=0)
+                
+                ax2.set_title('Daily Services Completed', fontweight='bold')
+                ax2.set_ylabel('Services Count')
+                ax2.set_xlabel('Date')
+                ax2.set_xlim(-0.5, len(dates)-0.5)
+                ax2.set_ylim(0, max(services_count) * 1.1)
+                ax2.grid(axis='y', alpha=0.3)
+                ax2.tick_params(axis='x', rotation=0)
+                
+                # Add value labels on bars for the last frame
+                if frame == len(dates) - 1:
+                    for bar in bars1:
+                        height = bar.get_height()
+                        ax1.text(bar.get_x() + bar.get_width()/2., height,
+                                f'₱{height:,.0f}', ha='center', va='bottom', fontsize=8)
+                    
+                    for bar in bars2:
+                        height = bar.get_height()
+                        ax2.text(bar.get_x() + bar.get_width()/2., height,
+                                f'{height:.0f}', ha='center', va='bottom', fontsize=8)
+                
+                return bars1, bars2
             
             plt.tight_layout()
             
@@ -860,6 +915,13 @@ class ServicesModule:
             canvas = FigureCanvasTkAgg(fig, self.service_charts_frame)
             canvas.draw()
             canvas.get_tk_widget().pack(fill='both', expand=True, padx=20, pady=20)
+            
+            # Create animation
+            anim = FuncAnimation(fig, animate, frames=len(dates), 
+                            interval=200, blit=False, repeat=False)
+            
+            # Store reference to prevent garbage collection
+            self.current_animation = anim
             
         except ImportError:
             self.show_no_service_data_message(self.service_charts_frame, "Matplotlib not available for charts")
@@ -1684,9 +1746,24 @@ class ServicesModule:
             tk.Label(customer_content, text="Contact Number:", 
                     font=('Arial', 10, 'bold'), bg='white', fg='#374151').pack(anchor='w', pady=(0, 5))
             contact_var = tk.StringVar()
+            
+            # Validation function to limit to 11 digits and only numbers
+            def validate_contact(new_value):
+                # Allow empty string
+                if new_value == "":
+                    return True
+                # Check if it contains only digits and is not longer than 11
+                if new_value.isdigit() and len(new_value) <= 11:
+                    return True
+                return False
+            
+            # Register the validation function
+            vcmd = (dialog.register(validate_contact), '%P')
             contact_entry = tk.Entry(customer_content, textvariable=contact_var, 
-                                    font=('Arial', 10), relief='solid', bd=1)
+                                    font=('Arial', 10), relief='solid', bd=1,
+                                    validate='key', validatecommand=vcmd)
             contact_entry.pack(fill='x', pady=(0, 5))  # Reduced bottom padding
+
             
             # Action buttons
             button_container = tk.Frame(content_frame, bg='white')
