@@ -322,6 +322,264 @@ class ProductDialog:
         except Exception as e:
             print(f"Error in ProductDialog.cancel(): {e}")
 
+class SalesFrame(ttk.Frame):
+    def __init__(self, parent, main_app):
+        try:
+            super().__init__(parent, style='Content.TFrame')
+            self.main_app = main_app
+            self.create_sales_interface()
+        except Exception as e:
+            print(f"Error creating SalesFrame: {e}")
+
+    def create_sales_interface(self):
+        try:
+            # Header with breadcrumb
+            header_frame = ttk.Frame(self, style='Content.TFrame')
+            header_frame.pack(fill='x', padx=30, pady=20)
+
+            # Title
+            title_label = ttk.Label(header_frame, text="Sales Records", style='PageTitle.TLabel')
+            title_label.pack(side='left')
+
+            # Breadcrumb
+            breadcrumb_frame = ttk.Frame(header_frame, style='Content.TFrame')
+            breadcrumb_frame.pack(side='right')
+
+            ttk.Label(breadcrumb_frame, text="Dashboard", style='Breadcrumb.TLabel').pack(side='left')
+            ttk.Label(breadcrumb_frame, text=" / ", style='Breadcrumb.TLabel').pack(side='left')
+            ttk.Label(breadcrumb_frame, text="Sales", style='BreadcrumbActive.TLabel').pack(side='left')
+
+            # Controls frame
+            controls_frame = ttk.Frame(self, style='Content.TFrame')
+            controls_frame.pack(fill='x', padx=30, pady=(0, 20))
+
+            # Date filter
+            filter_frame = ttk.Frame(controls_frame, style='Card.TFrame')
+            filter_frame.pack(side='left', fill='x', expand=True, padx=(0, 20))
+
+            ttk.Label(filter_frame, text="Filter by Date:", style='FieldLabel.TLabel').pack(side='left', padx=(15, 10), pady=15)
+            
+            self.date_filter_var = tk.StringVar(value="All Time")
+            date_combo = ttk.Combobox(filter_frame, textvariable=self.date_filter_var,
+                                    values=['Today', 'This Week', 'This Month', 'This Year', 'All Time'],
+                                    state='readonly', style='Modern.TCombobox', width=15)
+            date_combo.pack(side='left', padx=(0, 10), pady=15)
+            date_combo.bind('<<ComboboxSelected>>', self.filter_sales)
+
+            # Search
+            search_frame = ttk.Frame(controls_frame, style='Card.TFrame')
+            search_frame.pack(side='right', fill='x')
+
+            ttk.Label(search_frame, text="Search:", style='FieldLabel.TLabel').pack(side='left', padx=(15, 10), pady=15)
+            self.search_var = tk.StringVar()
+            search_entry = ttk.Entry(search_frame, textvariable=self.search_var, style='Modern.TEntry', width=30)
+            search_entry.pack(side='left', padx=(0, 15), pady=15)
+            search_entry.bind('<KeyRelease>', self.search_sales)
+
+            # Export button
+            export_btn = ttk.Button(controls_frame, text="📊 Export Report", 
+                                   command=self.export_sales_report, style='Secondary.TButton')
+            export_btn.pack(side='right', padx=(10, 0), pady=15)
+
+            # Main content
+            content_frame = ttk.Frame(self, style='Content.TFrame')
+            content_frame.pack(fill='both', expand=True, padx=30, pady=(0, 20))
+
+            # Sales summary cards
+            summary_frame = ttk.Frame(content_frame, style='Content.TFrame')
+            summary_frame.pack(fill='x', pady=(0, 20))
+
+            # Total Sales Card
+            total_sales_card = ttk.Frame(summary_frame, style='Card.TFrame')
+            total_sales_card.pack(side='left', fill='x', expand=True, padx=(0, 15))
+
+            ttk.Label(total_sales_card, text="💰", style='CardIcon.TLabel').pack(anchor='w', padx=20, pady=(20, 5))
+            ttk.Label(total_sales_card, text="Total Sales", style='CardTitle.TLabel').pack(anchor='w', padx=20, pady=(0, 5))
+            self.total_sales_var = tk.StringVar(value="₱0.00")
+            ttk.Label(total_sales_card, textvariable=self.total_sales_var, style='CardValue.TLabel').pack(anchor='w', padx=20, pady=(0, 20))
+
+            # Total Transactions Card
+            transactions_card = ttk.Frame(summary_frame, style='Card.TFrame')
+            transactions_card.pack(side='left', fill='x', expand=True, padx=(0, 15))
+
+            ttk.Label(transactions_card, text="📈", style='CardIcon.TLabel').pack(anchor='w', padx=20, pady=(20, 5))
+            ttk.Label(transactions_card, text="Total Transactions", style='CardTitle.TLabel').pack(anchor='w', padx=20, pady=(0, 5))
+            self.transactions_var = tk.StringVar(value="0")
+            ttk.Label(transactions_card, textvariable=self.transactions_var, style='CardValue.TLabel').pack(anchor='w', padx=20, pady=(0, 20))
+
+            # Average Sale Card
+            avg_sale_card = ttk.Frame(summary_frame, style='Card.TFrame')
+            avg_sale_card.pack(side='left', fill='x', expand=True)
+
+            ttk.Label(avg_sale_card, text="📊", style='CardIcon.TLabel').pack(anchor='w', padx=20, pady=(20, 5))
+            ttk.Label(avg_sale_card, text="Average Sale", style='CardTitle.TLabel').pack(anchor='w', padx=20, pady=(0, 5))
+            self.avg_sale_var = tk.StringVar(value="₱0.00")
+            ttk.Label(avg_sale_card, textvariable=self.avg_sale_var, style='CardValue.TLabel').pack(anchor='w', padx=20, pady=(0, 20))
+
+            # Sales table
+            table_frame = ttk.Frame(content_frame, style='Card.TFrame')
+            table_frame.pack(fill='both', expand=True, padx=0, pady=0)
+
+            # Create sales treeview
+            sales_columns = ('Sale ID', 'Date', 'Customer', 'Product', 'Quantity', 'Unit Price', 'Total', 'Payment Method')
+            self.sales_tree = ttk.Treeview(table_frame, columns=sales_columns, show='headings', 
+                                          style='Modern.Treeview', height=15)
+
+            # Configure columns
+            column_widths = {
+                'Sale ID': 80,
+                'Date': 120,
+                'Customer': 120,
+                'Product': 150,
+                'Quantity': 80,
+                'Unit Price': 100,
+                'Total': 100,
+                'Payment Method': 120
+            }
+
+            for col in sales_columns:
+                self.sales_tree.heading(col, text=col)
+                self.sales_tree.column(col, width=column_widths.get(col, 100))
+
+            # Scrollbar
+            scrollbar = ttk.Scrollbar(table_frame, orient='vertical', command=self.sales_tree.yview)
+            self.sales_tree.configure(yscrollcommand=scrollbar.set)
+
+            self.sales_tree.pack(side='left', fill='both', expand=True, padx=20, pady=20)
+            scrollbar.pack(side='right', fill='y', pady=20)
+
+            # Load initial data
+            self.load_sales_data()
+            
+        except Exception as e:
+            print(f"Error creating sales interface: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def load_sales_data(self):
+        """Load sales data from database"""
+        try:
+            # Clear existing data
+            for item in self.sales_tree.get_children():
+                self.sales_tree.delete(item)
+
+            # Connect to database
+            conn = sqlite3.connect('bike_shop.db')
+            cursor = conn.cursor()
+
+            # Get sales data
+            cursor.execute('''
+                SELECT sale_id, sale_date, customer_name, product_name, quantity, 
+                       unit_price, total_amount, payment_method 
+                FROM sales 
+                ORDER BY sale_date DESC
+            ''')
+            sales_data = cursor.fetchall()
+
+            # Insert data into treeview
+            total_sales = 0
+            transaction_count = 0
+            
+            for sale in sales_data:
+                self.sales_tree.insert('', 'end', values=sale)
+                total_sales += sale[6]  # total_amount
+                transaction_count += 1
+
+            # Update summary cards
+            self.total_sales_var.set(f"₱{total_sales:,.2f}")
+            self.transactions_var.set(f"{transaction_count}")
+            
+            if transaction_count > 0:
+                avg_sale = total_sales / transaction_count
+                self.avg_sale_var.set(f"₱{avg_sale:,.2f}")
+            else:
+                self.avg_sale_var.set("₱0.00")
+
+            conn.close()
+            
+        except Exception as e:
+            print(f"Error loading sales data: {e}")
+            messagebox.showerror("Database Error", f"Failed to load sales data: {str(e)}")
+
+    def filter_sales(self, event=None):
+        """Filter sales by date range"""
+        try:
+            # This would implement date filtering logic
+            # For now, just reload all data
+            self.load_sales_data()
+        except Exception as e:
+            print(f"Error filtering sales: {e}")
+
+    def search_sales(self, event=None):
+        """Search sales by customer or product name"""
+        try:
+            search_term = self.search_var.get().strip().lower()
+            if not search_term:
+                self.load_sales_data()
+                return
+
+            # Clear existing data
+            for item in self.sales_tree.get_children():
+                self.sales_tree.delete(item)
+
+            # Connect to database
+            conn = sqlite3.connect('bike_shop.db')
+            cursor = conn.cursor()
+
+            # Search sales data
+            cursor.execute('''
+                SELECT sale_id, sale_date, customer_name, product_name, quantity, 
+                       unit_price, total_amount, payment_method 
+                FROM sales 
+                WHERE LOWER(customer_name) LIKE ? OR LOWER(product_name) LIKE ?
+                ORDER BY sale_date DESC
+            ''', (f'%{search_term}%', f'%{search_term}%'))
+            
+            sales_data = cursor.fetchall()
+
+            # Insert filtered data
+            for sale in sales_data:
+                self.sales_tree.insert('', 'end', values=sale)
+
+            conn.close()
+            
+        except Exception as e:
+            print(f"Error searching sales: {e}")
+
+    def export_sales_report(self):
+        """Export sales report to CSV"""
+        try:
+            # Get all sales data
+            conn = sqlite3.connect('bike_shop.db')
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT sale_id, sale_date, customer_name, product_name, quantity, 
+                       unit_price, total_amount, payment_method 
+                FROM sales 
+                ORDER BY sale_date DESC
+            ''')
+            sales_data = cursor.fetchall()
+            conn.close()
+
+            if not sales_data:
+                messagebox.showinfo("Export", "No sales data to export.")
+                return
+
+            # Create CSV content
+            csv_content = "Sale ID,Date,Customer,Product,Quantity,Unit Price,Total,Payment Method\n"
+            for sale in sales_data:
+                csv_content += f"{sale[0]},{sale[1]},{sale[2]},{sale[3]},{sale[4]},{sale[5]},{sale[6]},{sale[7]}\n"
+
+            # Save to file
+            filename = f"sales_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write(csv_content)
+
+            messagebox.showinfo("Export Successful", f"Sales report exported to {filename}")
+            
+        except Exception as e:
+            messagebox.showerror("Export Error", f"Failed to export sales report: {str(e)}")
+
 class ModernSidebar(ttk.Frame):
     def __init__(self, parent, main_app):
         try:
@@ -366,6 +624,9 @@ class ModernSidebar(ttk.Frame):
             
             # Services button
             self.services_btn = self.create_nav_button(nav_frame, "🔧", "Services", self.main_app.show_services)
+            
+            # Sales button - NEW ADDITION
+            self.sales_btn = self.create_nav_button(nav_frame, "💰", "Sales", self.main_app.show_sales)
 
             # Logout button at bottom
             logout_frame = ttk.Frame(self, style='Sidebar.TFrame')
@@ -382,7 +643,8 @@ class ModernSidebar(ttk.Frame):
                 'statistics': self.statistics_btn,
                 'stock_history': self.stock_history_btn,
                 'inventory': self.inventory_btn,
-                'services': self.services_btn
+                'services': self.services_btn,
+                'sales': self.sales_btn  # Added sales to the nav_buttons dictionary
             }
         except Exception as e:
             print(f"Error in create_sidebar: {e}")
@@ -626,6 +888,230 @@ class SalesEntryFrame(ttk.Frame):
         print("Processing checkout...")
         # This will be implemented by the actual POS module
         pass
+
+class BikeShopApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Bike Shop Inventory Management System")
+        self.root.geometry("1400x800")
+        self.root.configure(bg='#f0fdff')
+        
+        # Initialize database
+        self.init_database()
+        
+        # Create styles
+        create_styles()
+        
+        # Create main layout
+        self.create_main_layout()
+        
+        # Show dashboard by default
+        self.show_dashboard()
+        
+    def init_database(self):
+        """Initialize SQLite database with required tables"""
+        try:
+            conn = sqlite3.connect('bike_shop.db')
+            cursor = conn.cursor()
+            
+            # Create products table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS products (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    price REAL NOT NULL,
+                    stock INTEGER NOT NULL,
+                    category TEXT NOT NULL,
+                    product_id TEXT UNIQUE NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # Create sales table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS sales (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sale_id TEXT UNIQUE NOT NULL,
+                    sale_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    customer_name TEXT NOT NULL,
+                    product_name TEXT NOT NULL,
+                    quantity INTEGER NOT NULL,
+                    unit_price REAL NOT NULL,
+                    total_amount REAL NOT NULL,
+                    payment_method TEXT NOT NULL
+                )
+            ''')
+            
+            # Create stock history table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS stock_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    product_id TEXT NOT NULL,
+                    product_name TEXT NOT NULL,
+                    change_type TEXT NOT NULL,
+                    quantity_change INTEGER NOT NULL,
+                    new_stock_level INTEGER NOT NULL,
+                    change_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    notes TEXT
+                )
+            ''')
+            
+            conn.commit()
+            conn.close()
+            print("Database initialized successfully!")
+            
+        except Exception as e:
+            print(f"Error initializing database: {e}")
+            messagebox.showerror("Database Error", f"Failed to initialize database: {str(e)}")
+    
+    def create_main_layout(self):
+        """Create the main application layout with sidebar and content area"""
+        try:
+            # Main container
+            main_container = ttk.Frame(self.root, style='Content.TFrame')
+            main_container.pack(fill='both', expand=True)
+            
+            # Sidebar
+            self.sidebar = ModernSidebar(main_container, self)
+            self.sidebar.pack(side='left', fill='y', padx=0, pady=0)
+            
+            # Content area
+            self.content_area = ttk.Frame(main_container, style='Content.TFrame')
+            self.content_area.pack(side='right', fill='both', expand=True)
+            
+        except Exception as e:
+            print(f"Error creating main layout: {e}")
+    
+    def show_dashboard(self):
+        """Show dashboard page"""
+        self.clear_content_area()
+        self.sidebar.set_active('dashboard')
+        
+        # Create dashboard content
+        dashboard_frame = ttk.Frame(self.content_area, style='Content.TFrame')
+        dashboard_frame.pack(fill='both', expand=True, padx=30, pady=20)
+        
+        # Header
+        header_frame = ttk.Frame(dashboard_frame, style='Content.TFrame')
+        header_frame.pack(fill='x', pady=(0, 20))
+        
+        title_label = ttk.Label(header_frame, text="Dashboard Overview", style='PageTitle.TLabel')
+        title_label.pack(side='left')
+        
+        # Placeholder content
+        placeholder = ttk.Label(dashboard_frame, text="🚴‍♂️ Bike Shop Dashboard\n\nThis is the main dashboard where you can see\nkey metrics and recent activities.", 
+                               style='Placeholder.TLabel', justify='center')
+        placeholder.pack(expand=True)
+    
+    def show_sales_entry(self):
+        """Show sales entry (POS) page"""
+        self.clear_content_area()
+        self.sidebar.set_active('sales_entry')
+        
+        sales_frame = SalesEntryFrame(self.content_area, self)
+        sales_frame.pack(fill='both', expand=True)
+    
+    def show_statistics(self):
+        """Show statistics page"""
+        self.clear_content_area()
+        self.sidebar.set_active('statistics')
+        
+        # Create statistics content
+        stats_frame = ttk.Frame(self.content_area, style='Content.TFrame')
+        stats_frame.pack(fill='both', expand=True, padx=30, pady=20)
+        
+        # Header
+        header_frame = ttk.Frame(stats_frame, style='Content.TFrame')
+        header_frame.pack(fill='x', pady=(0, 20))
+        
+        title_label = ttk.Label(header_frame, text="Sales Statistics", style='PageTitle.TLabel')
+        title_label.pack(side='left')
+        
+        # Placeholder content
+        placeholder = ttk.Label(stats_frame, text="📊 Statistics\n\nSales analytics and performance metrics\nwill be displayed here.", 
+                               style='Placeholder.TLabel', justify='center')
+        placeholder.pack(expand=True)
+    
+    def show_stock_history(self):
+        """Show stock history page"""
+        self.clear_content_area()
+        self.sidebar.set_active('stock_history')
+        
+        # Create stock history content
+        stock_frame = ttk.Frame(self.content_area, style='Content.TFrame')
+        stock_frame.pack(fill='both', expand=True, padx=30, pady=20)
+        
+        # Header
+        header_frame = ttk.Frame(stock_frame, style='Content.TFrame')
+        header_frame.pack(fill='x', pady=(0, 20))
+        
+        title_label = ttk.Label(header_frame, text="Stock History", style='PageTitle.TLabel')
+        title_label.pack(side='left')
+        
+        # Placeholder content
+        placeholder = ttk.Label(stock_frame, text="📋 Stock History\n\nTrack inventory changes and stock movements\nover time.", 
+                               style='Placeholder.TLabel', justify='center')
+        placeholder.pack(expand=True)
+    
+    def show_inventory(self):
+        """Show inventory management page"""
+        self.clear_content_area()
+        self.sidebar.set_active('inventory')
+        
+        # Create inventory content
+        inventory_frame = ttk.Frame(self.content_area, style='Content.TFrame')
+        inventory_frame.pack(fill='both', expand=True, padx=30, pady=20)
+        
+        # Header
+        header_frame = ttk.Frame(inventory_frame, style='Content.TFrame')
+        header_frame.pack(fill='x', pady=(0, 20))
+        
+        title_label = ttk.Label(header_frame, text="Inventory Management", style='PageTitle.TLabel')
+        title_label.pack(side='left')
+        
+        # Placeholder content
+        placeholder = ttk.Label(inventory_frame, text="📦 Inventory\n\nManage your product inventory and stock levels\nin this section.", 
+                               style='Placeholder.TLabel', justify='center')
+        placeholder.pack(expand=True)
+    
+    def show_services(self):
+        """Show services page"""
+        self.clear_content_area()
+        self.sidebar.set_active('services')
+        
+        # Create services content
+        services_frame = ttk.Frame(self.content_area, style='Content.TFrame')
+        services_frame.pack(fill='both', expand=True, padx=30, pady=20)
+        
+        # Header
+        header_frame = ttk.Frame(services_frame, style='Content.TFrame')
+        header_frame.pack(fill='x', pady=(0, 20))
+        
+        title_label = ttk.Label(header_frame, text="Bike Services", style='PageTitle.TLabel')
+        title_label.pack(side='left')
+        
+        # Placeholder content
+        placeholder = ttk.Label(services_frame, text="🔧 Services\n\nManage bike repair and maintenance services\nfor your customers.", 
+                               style='Placeholder.TLabel', justify='center')
+        placeholder.pack(expand=True)
+    
+    def show_sales(self):
+        """Show sales records page"""
+        self.clear_content_area()
+        self.sidebar.set_active('sales')
+        
+        sales_frame = SalesFrame(self.content_area, self)
+        sales_frame.pack(fill='both', expand=True)
+    
+    def clear_content_area(self):
+        """Clear the content area"""
+        for widget in self.content_area.winfo_children():
+            widget.destroy()
+    
+    def logout(self):
+        """Handle logout"""
+        if messagebox.askyesno("Logout", "Are you sure you want to logout?"):
+            self.root.quit()
 
 def create_styles():
     """Create modern styles with the bike shop logo color scheme"""
@@ -970,13 +1456,13 @@ def create_styles():
         traceback.print_exc()
         return False
 
-BIKE_SHOP_COLORS = {
-    'Bright Cyan': '#00d4ff',      # Top of gradient - electric cyan
-    'Turquoise': '#00bcd4',        # Main brand color
-    'Sky Blue': '#0ea5e9',         # Accent color  
-    'Deep Blue': '#1e40af',        # Bottom of gradient
-    'Dark Navy': '#0f172a',        # Almost black blue
-    'White': '#ffffff',            # Pure white
-    'Light Cyan BG': '#f0fdff',    # Very light background
-    'Cyan Border': '#7dd3fc'       # Light cyan for borders
-}
+# Run the application
+if __name__ == "__main__":
+    try:
+        root = tk.Tk()
+        app = BikeShopApp(root)
+        root.mainloop()
+    except Exception as e:
+        print(f"Error starting application: {e}")
+        import traceback
+        traceback.print_exc()

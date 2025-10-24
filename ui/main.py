@@ -8,6 +8,7 @@ from statistics import StatisticsModule
 from stockhistory import StockHistoryModule
 from inventory import InventoryModule
 from services import ServicesModule
+from sales import SalesModule  # ADDED: Import the SalesModule
 from ui_components import create_styles, ModernSidebar
 
 class BikeShopInventorySystem:
@@ -39,6 +40,7 @@ class BikeShopInventorySystem:
         self.stock_history_module = StockHistoryModule(self.content_frame, self)
         self.inventory_module = InventoryModule(self.content_frame, self)
         self.services_module = ServicesModule(self.content_frame, self)
+        self.sales_module = SalesModule(self.content_frame, self)  # ADDED: Initialize SalesModule
         
         self.sales_entry_frame = None
         self.dashboard_frame = None
@@ -46,6 +48,7 @@ class BikeShopInventorySystem:
         self.inventory_frame = None
         self.stock_history_frame = None
         self.services_frame = None
+        self.sales_frame = None  # ADDED: Sales frame reference
 
     def init_database(self):
         """Initialize SQLite database and create tables - UPDATED with customer name and address support"""
@@ -189,10 +192,19 @@ class BikeShopInventorySystem:
             self.services_frame.pack(fill='both', expand=True)
         self.sidebar.set_active('services')
 
+    def show_sales(self):  # ADDED: Show sales interface
+        """Show the sales records interface"""
+        self.hide_all_frames()
+        self.sales_frame = self.sales_module.create_interface()
+        if self.sales_frame:
+            self.sales_frame.pack(fill='both', expand=True)
+        self.sidebar.set_active('sales')
+
     def hide_all_frames(self):
         """Hide all content frames"""
         for frame in [self.sales_entry_frame, self.dashboard_frame, self.statistics_frame,
-                     self.inventory_frame, self.stock_history_frame, self.services_frame]:
+                     self.inventory_frame, self.stock_history_frame, self.services_frame,
+                     self.sales_frame]:  # ADDED: Include sales frame
             if frame:
                 frame.pack_forget()
 

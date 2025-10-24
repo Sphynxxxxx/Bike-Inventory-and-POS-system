@@ -643,6 +643,20 @@ class StockHistoryModule:
             self.refresh_stock_history()
             return self.frame
         return None
+        
+    def remove_initial_record(self, product_id):
+        """Remove initial stock record for a specific product"""
+        try:
+            self.main_app.cursor.execute("""
+                DELETE FROM stock_movements 
+                WHERE reference_id = 'INITIAL' AND product_id = ?
+            """, (product_id,))
+            self.main_app.conn.commit()
+            messagebox.showinfo("Success", "Initial record successfully removed")
+            self.refresh_stock_history()
+        except sqlite3.Error as e:
+            messagebox.showerror("Error", f"Failed to remove initial record: {str(e)}")
+            self.main_app.conn.rollback()
 
 
 class EditCustomerDialog:

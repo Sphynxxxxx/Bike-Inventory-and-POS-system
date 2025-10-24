@@ -190,6 +190,16 @@ class ServicesModule:
         self.frame = None
         self.init_services_database()
         
+        # NEW: Initialize variables for service sales
+        self.sales_period_var = None
+        self.service_year_var = None
+        self.service_year_combo = None
+        self.service_year_frame = None
+        self.service_sales_notebook = None
+        self.service_summary_frame = None
+        self.service_charts_frame = None
+        self.service_detailed_frame = None
+        
     def insert_default_services(self):
         """Insert default services into the database"""
         default_services = [
@@ -289,13 +299,878 @@ class ServicesModule:
             notebook.add(history_tab, text='Service History')
             self.create_service_history_tab(history_tab)
             
+            # Service Sales tab - UPDATED: Use the new chart-based version
+            sales_tab = ttk.Frame(notebook, style='Content.TFrame')
+            notebook.add(sales_tab, text='Service Sales')
+            self.create_service_sales_tab(sales_tab)
+            
         except Exception as e:
             print(f"Error creating notebook: {e}")
             # Fall back to simple frame if notebook fails
             self.create_services_tab(self.frame)
         
         return self.frame
+
+    def create_service_sales_tab(self, parent):
+        """Create the service sales analysis tab with charts and time period analysis"""
+        # Header
+        header_frame = ttk.Frame(parent, style='Content.TFrame')
+        header_frame.pack(fill='x', padx=20, pady=10)
+        
+        ttk.Label(header_frame, text="Service Sales Analysis", 
+                 style='SectionTitle.TLabel').pack(side='left')
+        
+        # Controls frame
+        controls_frame = ttk.Frame(parent, style='Content.TFrame')
+        controls_frame.pack(fill='x', padx=20, pady=10)
+        
+        # Time period selector
+        period_frame = ttk.Frame(controls_frame, style='Card.TFrame')
+        period_frame.pack(side='left', fill='x', expand=True)
+        
+        ttk.Label(period_frame, text="View:", style='FieldLabel.TLabel').pack(side='left', padx=(15, 10), pady=10)
+        
+        self.sales_period_var = tk.StringVar(value='Monthly')
+        period_combo = ttk.Combobox(period_frame, textvariable=self.sales_period_var,
+                              values=['Daily', 'Weekly', 'Monthly', 'Yearly'],
+                              state='readonly', style='Modern.TCombobox', width=15)
+        period_combo.pack(side='left', padx=(0, 15), pady=10)
+        period_combo.bind('<<ComboboxSelected>>', self.load_service_sales_data)
+        
+        # Year selector for monthly/yearly views
+        self.service_year_frame = ttk.Frame(controls_frame, style='Card.TFrame')
+        self.service_year_frame.pack(side='left', fill='x', padx=(20, 0))
+        
+        ttk.Label(self.service_year_frame, text="Year:", style='FieldLabel.TLabel').pack(side='left', padx=(15, 10), pady=10)
+        
+        self.service_year_var = tk.StringVar(value=str(datetime.now().year))
+        self.service_year_combo = ttk.Combobox(self.service_year_frame, textvariable=self.service_year_var,
+                                         state='readonly', style='Modern.TCombobox', width=10)
+        self.service_year_combo.pack(side='left', padx=(0, 15), pady=10)
+        self.service_year_combo.bind('<<ComboboxSelected>>', self.load_service_sales_data)
+        
+
+        
+        # Main content area with notebook for different views
+        content_frame = ttk.Frame(parent, style='Content.TFrame')
+        content_frame.pack(fill='both', expand=True, padx=20, pady=(0, 20))
+        
+        # Create notebook for different views
+        self.service_sales_notebook = ttk.Notebook(content_frame)
+        self.service_sales_notebook.pack(fill='both', expand=True)
+        
+        # Summary tab
+        self.service_summary_frame = ttk.Frame(self.service_sales_notebook, style='Content.TFrame')
+        self.service_sales_notebook.add(self.service_summary_frame, text="Summary")
+        
+        # Charts tab
+        self.service_charts_frame = ttk.Frame(self.service_sales_notebook, style='Content.TFrame')
+        self.service_sales_notebook.add(self.service_charts_frame, text="Charts")
+        
+        # Detailed Data tab
+        self.service_detailed_frame = ttk.Frame(self.service_sales_notebook, style='Content.TFrame')
+        self.service_sales_notebook.add(self.service_detailed_frame, text="Detailed Data")
+        
+        # Initialize year selector and load data
+        self.update_service_year_selector()
+        self.load_service_sales_data()
+
+    def update_service_year_selector(self):
+        """Update available years in the service year selector"""
+        try:
+            self.main_app.cursor.execute('''
+                SELECT DISTINCT strftime('%Y', booking_date) as year
+                FROM service_bookings 
+                WHERE booking_date IS NOT NULL
+                ORDER BY year DESC
+            ''')
+            results = self.main_app.cursor.fetchall()
+            available_years = [row[0] for row in results] if results else [str(datetime.now().year)]
+            self.service_year_combo['values'] = available_years
+            if available_years:
+                self.service_year_var.set(available_years[0])
+        except Exception as e:
+            print(f"Error updating service year selector: {e}")
+
+    def load_service_sales_data(self, event=None):
+        """Load service sales data based on current view"""
+        try:
+            period = self.sales_period_var.get().lower()
+            
+            # Clear previous data
+            self.clear_service_sales_frames()
+            
+            # Get data based on current view
+            if period == 'daily':
+                data = self.get_service_daily_data()
+                self.display_service_daily_summary(data)
+                self.create_service_daily_charts(data)
+                self.display_service_detailed_data(data, 'Daily')
+                
+            elif period == 'weekly':
+                data = self.get_service_weekly_data()
+                self.display_service_weekly_summary(data)
+                self.create_service_weekly_charts(data)
+                self.display_service_detailed_data(data, 'Weekly')
+                
+            elif period == 'monthly':
+                year = int(self.service_year_var.get())
+                data = self.get_service_monthly_data(year)
+                self.display_service_monthly_summary(data, year)
+                self.create_service_monthly_charts(data, year)
+                self.display_service_detailed_data(data, 'Monthly')
+                
+            elif period == 'yearly':
+                data = self.get_service_yearly_data()
+                self.display_service_yearly_summary(data)
+                self.create_service_yearly_charts(data)
+                self.display_service_detailed_data(data, 'Yearly')
+                
+        except Exception as e:
+            print(f"Error loading service sales data: {e}")
+            messagebox.showerror("Error", f"Failed to load service sales data: {str(e)}")
+
+    def clear_service_sales_frames(self):
+        """Clear all service sales display frames"""
+        for widget in self.service_summary_frame.winfo_children():
+            widget.destroy()
+        for widget in self.service_charts_frame.winfo_children():
+            widget.destroy()
+        for widget in self.service_detailed_frame.winfo_children():
+            widget.destroy()
+
+    def get_service_daily_data(self):
+        """Get daily service data for the last 30 days"""
+        try:
+            self.main_app.cursor.execute('''
+                SELECT 
+                    DATE(booking_date) as date,
+                    SUM(price) as revenue,
+                    COUNT(*) as services_count,
+                    COUNT(DISTINCT customer_name) as unique_customers
+                FROM service_bookings 
+                WHERE DATE(booking_date) >= DATE('now', '-30 days')
+                GROUP BY DATE(booking_date)
+                ORDER BY date DESC
+            ''')
+            return self.main_app.cursor.fetchall()
+        except Exception as e:
+            print(f"Error getting daily service data: {e}")
+            return []
+
+    def get_service_weekly_data(self):
+        """Get weekly service data for the last 12 weeks"""
+        try:
+            self.main_app.cursor.execute('''
+                SELECT 
+                    strftime('%Y-W%W', booking_date) as week,
+                    MIN(DATE(booking_date, 'weekday 0', '-6 days')) as week_start,
+                    MAX(DATE(booking_date, 'weekday 0')) as week_end,
+                    SUM(price) as revenue,
+                    COUNT(*) as services_count,
+                    COUNT(DISTINCT customer_name) as unique_customers
+                FROM service_bookings 
+                WHERE DATE(booking_date) >= DATE('now', '-84 days')
+                GROUP BY week
+                ORDER BY week DESC
+            ''')
+            return self.main_app.cursor.fetchall()
+        except Exception as e:
+            print(f"Error getting weekly service data: {e}")
+            return []
+
+    def get_service_monthly_data(self, year):
+        """Get monthly service data for specific year"""
+        try:
+            self.main_app.cursor.execute('''
+                SELECT 
+                    strftime('%m', booking_date) as month,
+                    SUM(price) as revenue,
+                    COUNT(*) as services_count,
+                    COUNT(DISTINCT customer_name) as unique_customers
+                FROM service_bookings 
+                WHERE strftime('%Y', booking_date) = ?
+                GROUP BY month
+                ORDER BY month
+            ''', (str(year),))
+            return self.main_app.cursor.fetchall()
+        except Exception as e:
+            print(f"Error getting monthly service data: {e}")
+            return []
+
+    def get_service_yearly_data(self):
+        """Get yearly service data"""
+        try:
+            self.main_app.cursor.execute('''
+                SELECT 
+                    strftime('%Y', booking_date) as year,
+                    SUM(price) as revenue,
+                    COUNT(*) as services_count,
+                    COUNT(DISTINCT customer_name) as unique_customers
+                FROM service_bookings 
+                GROUP BY year
+                ORDER BY year DESC
+            ''')
+            return self.main_app.cursor.fetchall()
+        except Exception as e:
+            print(f"Error getting yearly service data: {e}")
+            return []
+
+    def display_service_daily_summary(self, data):
+        """Display daily service sales summary"""
+        if not data:
+            self.show_no_service_data_message(self.service_summary_frame, "No daily service data available")
+            return
+            
+        summary_frame = ttk.Frame(self.service_summary_frame, style='Content.TFrame')
+        summary_frame.pack(fill='both', expand=True, padx=20, pady=20)
+        
+        # Calculate totals
+        total_revenue = sum(row[1] for row in data)
+        total_services = sum(row[2] for row in data)
+        total_customers = sum(row[3] for row in data)
+        avg_revenue = total_revenue / len(data) if data else 0
+        
+        # Summary cards
+        cards_frame = ttk.Frame(summary_frame, style='Content.TFrame')
+        cards_frame.pack(fill='x', pady=(0, 20))
+        
+        # Total Revenue Card
+        revenue_card = ttk.Frame(cards_frame, style='Card.TFrame')
+        revenue_card.pack(side='left', fill='x', expand=True, padx=(0, 15))
+        ttk.Label(revenue_card, text="💰", style='CardIcon.TLabel').pack(anchor='w', padx=20, pady=(20, 5))
+        ttk.Label(revenue_card, text="Total Revenue (30 days)", style='CardTitle.TLabel').pack(anchor='w', padx=20, pady=(0, 5))
+        ttk.Label(revenue_card, text=f"₱{total_revenue:,.2f}", style='CardValue.TLabel').pack(anchor='w', padx=20, pady=(0, 20))
+        
+        # Average Daily Revenue Card
+        avg_card = ttk.Frame(cards_frame, style='Card.TFrame')
+        avg_card.pack(side='left', fill='x', expand=True, padx=(0, 15))
+        ttk.Label(avg_card, text="📊", style='CardIcon.TLabel').pack(anchor='w', padx=20, pady=(20, 5))
+        ttk.Label(avg_card, text="Average Daily Revenue", style='CardTitle.TLabel').pack(anchor='w', padx=20, pady=(0, 5))
+        ttk.Label(avg_card, text=f"₱{avg_revenue:,.2f}", style='CardValue.TLabel').pack(anchor='w', padx=20, pady=(0, 20))
+        
+        # Services Completed Card
+        services_card = ttk.Frame(cards_frame, style='Card.TFrame')
+        services_card.pack(side='left', fill='x', expand=True)
+        ttk.Label(services_card, text="🔧", style='CardIcon.TLabel').pack(anchor='w', padx=20, pady=(20, 5))
+        ttk.Label(services_card, text="Services Completed", style='CardTitle.TLabel').pack(anchor='w', padx=20, pady=(0, 5))
+        ttk.Label(services_card, text=f"{total_services:,}", style='CardValue.TLabel').pack(anchor='w', padx=20, pady=(0, 20))
+        
+        # Recent days table
+        table_frame = ttk.Frame(summary_frame, style='Card.TFrame')
+        table_frame.pack(fill='both', expand=True)
+        
+        ttk.Label(table_frame, text="Recent Daily Service Sales", style='SectionTitle.TLabel').pack(anchor='w', padx=20, pady=20)
+        
+        # Create treeview
+        columns = ('Date', 'Revenue', 'Services', 'Customers')
+        tree = ttk.Treeview(table_frame, columns=columns, show='headings', style='Modern.Treeview', height=10)
+        
+        for col in columns:
+            tree.heading(col, text=col)
+            tree.column(col, width=120)
+        
+        # Add data
+        for row in data[:10]:  # Show last 10 days
+            date_obj = datetime.strptime(row[0], '%Y-%m-%d')
+            formatted_date = date_obj.strftime('%b %d, %Y')
+            tree.insert('', 'end', values=(
+                formatted_date,
+                f"₱{row[1]:,.2f}",
+                f"{row[2]:,}",
+                f"{row[3]:,}"
+            ))
+        
+        scrollbar = ttk.Scrollbar(table_frame, orient='vertical', command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        
+        tree.pack(side='left', fill='both', expand=True, padx=20, pady=(0, 20))
+        scrollbar.pack(side='right', fill='y', pady=(0, 20))
+
+    def display_service_weekly_summary(self, data):
+        """Display weekly service sales summary"""
+        if not data:
+            self.show_no_service_data_message(self.service_summary_frame, "No weekly service data available")
+            return
+            
+        summary_frame = ttk.Frame(self.service_summary_frame, style='Content.TFrame')
+        summary_frame.pack(fill='both', expand=True, padx=20, pady=20)
+        
+        # Calculate totals
+        total_revenue = sum(row[3] for row in data)
+        total_services = sum(row[4] for row in data)
+        total_customers = sum(row[5] for row in data)
+        
+        # Summary cards
+        cards_frame = ttk.Frame(summary_frame, style='Content.TFrame')
+        cards_frame.pack(fill='x', pady=(0, 20))
+        
+        # Total Revenue Card
+        revenue_card = ttk.Frame(cards_frame, style='Card.TFrame')
+        revenue_card.pack(side='left', fill='x', expand=True, padx=(0, 15))
+        ttk.Label(revenue_card, text="💰", style='CardIcon.TLabel').pack(anchor='w', padx=20, pady=(20, 5))
+        ttk.Label(revenue_card, text="Total Revenue (12 weeks)", style='CardTitle.TLabel').pack(anchor='w', padx=20, pady=(0, 5))
+        ttk.Label(revenue_card, text=f"₱{total_revenue:,.2f}", style='CardValue.TLabel').pack(anchor='w', padx=20, pady=(0, 20))
+        
+        # Services Completed Card
+        services_card = ttk.Frame(cards_frame, style='Card.TFrame')
+        services_card.pack(side='left', fill='x', expand=True, padx=(0, 15))
+        ttk.Label(services_card, text="🔧", style='CardIcon.TLabel').pack(anchor='w', padx=20, pady=(20, 5))
+        ttk.Label(services_card, text="Services Completed", style='CardTitle.TLabel').pack(anchor='w', padx=20, pady=(0, 5))
+        ttk.Label(services_card, text=f"{total_services:,}", style='CardValue.TLabel').pack(anchor='w', padx=20, pady=(0, 20))
+        
+        # Unique Customers Card
+        customers_card = ttk.Frame(cards_frame, style='Card.TFrame')
+        customers_card.pack(side='left', fill='x', expand=True)
+        ttk.Label(customers_card, text="👥", style='CardIcon.TLabel').pack(anchor='w', padx=20, pady=(20, 5))
+        ttk.Label(customers_card, text="Unique Customers", style='CardTitle.TLabel').pack(anchor='w', padx=20, pady=(0, 5))
+        ttk.Label(customers_card, text=f"{total_customers:,}", style='CardValue.TLabel').pack(anchor='w', padx=20, pady=(0, 20))
+        
+        # Weekly table
+        table_frame = ttk.Frame(summary_frame, style='Card.TFrame')
+        table_frame.pack(fill='both', expand=True)
+        
+        ttk.Label(table_frame, text="Weekly Service Sales Summary", style='SectionTitle.TLabel').pack(anchor='w', padx=20, pady=20)
+        
+        # Create treeview
+        columns = ('Week', 'Period', 'Revenue', 'Services', 'Customers')
+        tree = ttk.Treeview(table_frame, columns=columns, show='headings', style='Modern.Treeview', height=8)
+        
+        tree.heading('Week', text='Week')
+        tree.heading('Period', text='Period')
+        tree.heading('Revenue', text='Revenue')
+        tree.heading('Services', text='Services')
+        tree.heading('Customers', text='Customers')
+        
+        tree.column('Week', width=80)
+        tree.column('Period', width=150)
+        tree.column('Revenue', width=120)
+        tree.column('Services', width=100)
+        tree.column('Customers', width=100)
+        
+        # Add data
+        for row in data:
+            week_num = row[0].split('-W')[1]
+            start_date = datetime.strptime(row[1], '%Y-%m-%d').strftime('%b %d')
+            end_date = datetime.strptime(row[2], '%Y-%m-%d').strftime('%b %d')
+            period = f"{start_date} - {end_date}"
+            
+            tree.insert('', 'end', values=(
+                f"Week {week_num}",
+                period,
+                f"₱{row[3]:,.2f}",
+                f"{row[4]:,}",
+                f"{row[5]:,}"
+            ))
+        
+        scrollbar = ttk.Scrollbar(table_frame, orient='vertical', command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        
+        tree.pack(side='left', fill='both', expand=True, padx=20, pady=(0, 20))
+        scrollbar.pack(side='right', fill='y', pady=(0, 20))
+
+    def display_service_monthly_summary(self, data, year):
+        """Display monthly service sales summary"""
+        if not data:
+            self.show_no_service_data_message(self.service_summary_frame, f"No monthly service data available for {year}")
+            return
+            
+        summary_frame = ttk.Frame(self.service_summary_frame, style='Content.TFrame')
+        summary_frame.pack(fill='both', expand=True, padx=20, pady=20)
+        
+        # Calculate totals
+        total_revenue = sum(row[1] for row in data)
+        total_services = sum(row[2] for row in data)
+        total_customers = sum(row[3] for row in data)
+        
+        # Summary cards
+        cards_frame = ttk.Frame(summary_frame, style='Content.TFrame')
+        cards_frame.pack(fill='x', pady=(0, 20))
+        
+        # Total Revenue Card
+        revenue_card = ttk.Frame(cards_frame, style='Card.TFrame')
+        revenue_card.pack(side='left', fill='x', expand=True, padx=(0, 15))
+        ttk.Label(revenue_card, text="💰", style='CardIcon.TLabel').pack(anchor='w', padx=20, pady=(20, 5))
+        ttk.Label(revenue_card, text=f"Total Revenue ({year})", style='CardTitle.TLabel').pack(anchor='w', padx=20, pady=(0, 5))
+        ttk.Label(revenue_card, text=f"₱{total_revenue:,.2f}", style='CardValue.TLabel').pack(anchor='w', padx=20, pady=(0, 20))
+        
+        # Services Completed Card
+        services_card = ttk.Frame(cards_frame, style='Card.TFrame')
+        services_card.pack(side='left', fill='x', expand=True, padx=(0, 15))
+        ttk.Label(services_card, text="🔧", style='CardIcon.TLabel').pack(anchor='w', padx=20, pady=(20, 5))
+        ttk.Label(services_card, text="Services Completed", style='CardTitle.TLabel').pack(anchor='w', padx=20, pady=(0, 5))
+        ttk.Label(services_card, text=f"{total_services:,}", style='CardValue.TLabel').pack(anchor='w', padx=20, pady=(0, 20))
+        
+        # Unique Customers Card
+        customers_card = ttk.Frame(cards_frame, style='Card.TFrame')
+        customers_card.pack(side='left', fill='x', expand=True)
+        ttk.Label(customers_card, text="👥", style='CardIcon.TLabel').pack(anchor='w', padx=20, pady=(20, 5))
+        ttk.Label(customers_card, text="Unique Customers", style='CardTitle.TLabel').pack(anchor='w', padx=20, pady=(0, 5))
+        ttk.Label(customers_card, text=f"{total_customers:,}", style='CardValue.TLabel').pack(anchor='w', padx=20, pady=(0, 20))
+        
+        # Monthly table
+        table_frame = ttk.Frame(summary_frame, style='Card.TFrame')
+        table_frame.pack(fill='both', expand=True)
+        
+        ttk.Label(table_frame, text=f"Monthly Service Sales Summary - {year}", style='SectionTitle.TLabel').pack(anchor='w', padx=20, pady=20)
+        
+        # Create treeview
+        columns = ('Month', 'Revenue', 'Services', 'Customers', 'Avg. Revenue/Day')
+        tree = ttk.Treeview(table_frame, columns=columns, show='headings', style='Modern.Treeview', height=12)
+        
+        for col in columns:
+            tree.heading(col, text=col)
+            tree.column(col, width=120)
+        
+        # Month names
+        month_names = ['January', 'February', 'March', 'April', 'May', 'June', 
+                      'July', 'August', 'September', 'October', 'November', 'December']
+        
+        # Add data
+        for row in data:
+            month_index = int(row[0]) - 1
+            month_name = month_names[month_index]
+            days_in_month = 30  # Approximation
+            avg_daily = row[1] / days_in_month if days_in_month > 0 else 0
+            
+            tree.insert('', 'end', values=(
+                month_name,
+                f"₱{row[1]:,.2f}",
+                f"{row[2]:,}",
+                f"{row[3]:,}",
+                f"₱{avg_daily:,.2f}"
+            ))
+        
+        scrollbar = ttk.Scrollbar(table_frame, orient='vertical', command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        
+        tree.pack(side='left', fill='both', expand=True, padx=20, pady=(0, 20))
+        scrollbar.pack(side='right', fill='y', pady=(0, 20))
+
+    def display_service_yearly_summary(self, data):
+        """Display yearly service sales summary"""
+        if not data:
+            self.show_no_service_data_message(self.service_summary_frame, "No yearly service data available")
+            return
+            
+        summary_frame = ttk.Frame(self.service_summary_frame, style='Content.TFrame')
+        summary_frame.pack(fill='both', expand=True, padx=20, pady=20)
+        
+        # Calculate totals
+        total_revenue = sum(row[1] for row in data)
+        total_services = sum(row[2] for row in data)
+        total_customers = sum(row[3] for row in data)
+        
+        # Summary cards
+        cards_frame = ttk.Frame(summary_frame, style='Content.TFrame')
+        cards_frame.pack(fill='x', pady=(0, 20))
+        
+        # Total Revenue Card
+        revenue_card = ttk.Frame(cards_frame, style='Card.TFrame')
+        revenue_card.pack(side='left', fill='x', expand=True, padx=(0, 15))
+        ttk.Label(revenue_card, text="💰", style='CardIcon.TLabel').pack(anchor='w', padx=20, pady=(20, 5))
+        ttk.Label(revenue_card, text="Total Revenue (All Years)", style='CardTitle.TLabel').pack(anchor='w', padx=20, pady=(0, 5))
+        ttk.Label(revenue_card, text=f"₱{total_revenue:,.2f}", style='CardValue.TLabel').pack(anchor='w', padx=20, pady=(0, 20))
+        
+        # Services Completed Card
+        services_card = ttk.Frame(cards_frame, style='Card.TFrame')
+        services_card.pack(side='left', fill='x', expand=True, padx=(0, 15))
+        ttk.Label(services_card, text="🔧", style='CardIcon.TLabel').pack(anchor='w', padx=20, pady=(20, 5))
+        ttk.Label(services_card, text="Total Services", style='CardTitle.TLabel').pack(anchor='w', padx=20, pady=(0, 5))
+        ttk.Label(services_card, text=f"{total_services:,}", style='CardValue.TLabel').pack(anchor='w', padx=20, pady=(0, 20))
+        
+        # Unique Customers Card
+        customers_card = ttk.Frame(cards_frame, style='Card.TFrame')
+        customers_card.pack(side='left', fill='x', expand=True)
+        ttk.Label(customers_card, text="👥", style='CardIcon.TLabel').pack(anchor='w', padx=20, pady=(20, 5))
+        ttk.Label(customers_card, text="Unique Customers", style='CardTitle.TLabel').pack(anchor='w', padx=20, pady=(0, 5))
+        ttk.Label(customers_card, text=f"{total_customers:,}", style='CardValue.TLabel').pack(anchor='w', padx=20, pady=(0, 20))
+        
+        # Yearly table
+        table_frame = ttk.Frame(summary_frame, style='Card.TFrame')
+        table_frame.pack(fill='both', expand=True)
+        
+        ttk.Label(table_frame, text="Yearly Service Sales Summary", style='SectionTitle.TLabel').pack(anchor='w', padx=20, pady=20)
+        
+        # Create treeview
+        columns = ('Year', 'Revenue', 'Services', 'Customers', 'Avg. Monthly Revenue')
+        tree = ttk.Treeview(table_frame, columns=columns, show='headings', style='Modern.Treeview', height=8)
+        
+        for col in columns:
+            tree.heading(col, text=col)
+            tree.column(col, width=120)
+        
+        # Add data
+        for row in data:
+            avg_monthly = row[1] / 12  # Approximation
+            
+            tree.insert('', 'end', values=(
+                row[0],
+                f"₱{row[1]:,.2f}",
+                f"{row[2]:,}",
+                f"{row[3]:,}",
+                f"₱{avg_monthly:,.2f}"
+            ))
+        
+        scrollbar = ttk.Scrollbar(table_frame, orient='vertical', command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        
+        tree.pack(side='left', fill='both', expand=True, padx=20, pady=(0, 20))
+        scrollbar.pack(side='right', fill='y', pady=(0, 20))
+
+    def create_service_daily_charts(self, data):
+        """Create daily service sales charts"""
+        if not data:
+            self.show_no_service_data_message(self.service_charts_frame, "No daily service data available for charts")
+            return
+        
+        try:
+            import matplotlib.pyplot as plt
+            from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+            
+            # Reverse data for chronological order
+            data.reverse()
+            
+            dates = [datetime.strptime(row[0], '%Y-%m-%d').strftime('%m-%d') for row in data]
+            revenues = [row[1] for row in data]
+            services_count = [row[2] for row in data]
+            
+            # Create figure with subplots
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
+            fig.suptitle('Daily Service Sales Analysis (Last 30 Days)', fontsize=14, fontweight='bold')
+            
+            # Revenue chart
+            ax1.bar(dates, revenues, color='#00bcd4', alpha=0.7)
+            ax1.set_title('Daily Service Revenue', fontweight='bold')
+            ax1.set_ylabel('Revenue (₱)')
+            ax1.tick_params(axis='x', rotation=0)
+            ax1.grid(axis='y', alpha=0.3)
+            
+            # Services count chart
+            ax2.bar(dates, services_count, color='#4caf50', alpha=0.7)
+            ax2.set_title('Daily Services Completed', fontweight='bold')
+            ax2.set_ylabel('Services Count')
+            ax2.set_xlabel('Date')
+            ax2.tick_params(axis='x', rotation=0)
+            ax2.grid(axis='y', alpha=0.3)
+            
+            plt.tight_layout()
+            
+            # Embed in tkinter
+            canvas = FigureCanvasTkAgg(fig, self.service_charts_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill='both', expand=True, padx=20, pady=20)
+            
+        except ImportError:
+            self.show_no_service_data_message(self.service_charts_frame, "Matplotlib not available for charts")
+        except Exception as e:
+            print(f"Error creating daily charts: {e}")
+            self.show_no_service_data_message(self.service_charts_frame, f"Error creating charts: {str(e)}")
+
+    def create_service_weekly_charts(self, data):
+        """Create weekly service sales charts"""
+        if not data:
+            self.show_no_service_data_message(self.service_charts_frame, "No weekly service data available for charts")
+            return
+        
+        try:
+            import matplotlib.pyplot as plt
+            from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+            
+            # Reverse data for chronological order
+            data.reverse()
+            
+            weeks = [f"Week {row[0].split('-W')[1]}" for row in data]
+            revenues = [row[3] for row in data]
+            services_count = [row[4] for row in data]
+            
+            # Create figure with subplots
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+            fig.suptitle('Weekly Service Sales Analysis (Last 12 Weeks)', fontsize=14, fontweight='bold')
+            
+            # Revenue chart
+            ax1.bar(weeks, revenues, color='#00bcd4', alpha=0.7)
+            ax1.set_title('Weekly Service Revenue', fontweight='bold')
+            ax1.set_ylabel('Revenue (₱)')
+            ax1.tick_params(axis='x', rotation=0)
+            ax1.grid(axis='y', alpha=0.3)
+            
+            # Services count chart
+            ax2.bar(weeks, services_count, color='#4caf50', alpha=0.7)
+            ax2.set_title('Weekly Services Completed', fontweight='bold')
+            ax2.set_ylabel('Services Count')
+            ax2.set_xlabel('Week')
+            ax2.tick_params(axis='x', rotation=0)
+            ax2.grid(axis='y', alpha=0.3)
+            
+            plt.tight_layout()
+            
+            # Embed in tkinter
+            canvas = FigureCanvasTkAgg(fig, self.service_charts_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill='both', expand=True, padx=20, pady=20)
+            
+        except ImportError:
+            self.show_no_service_data_message(self.service_charts_frame, "Matplotlib not available for charts")
+        except Exception as e:
+            print(f"Error creating weekly charts: {e}")
+            self.show_no_service_data_message(self.service_charts_frame, f"Error creating charts: {str(e)}")
+
+    def create_service_monthly_charts(self, data, year):
+        """Create monthly service sales charts"""
+        if not data:
+            self.show_no_service_data_message(self.service_charts_frame, f"No monthly service data available for {year}")
+            return
+        
+        try:
+            import matplotlib.pyplot as plt
+            from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+            
+            month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+            
+            # Create full year data (include months with 0 sales)
+            full_data = []
+            for i in range(1, 13):
+                month_data = next((row for row in data if int(row[0]) == i), None)
+                if month_data:
+                    full_data.append(month_data)
+                else:
+                    full_data.append((str(i).zfill(2), 0.0, 0, 0))
+            
+            months = [month_names[i] for i in range(12)]
+            revenues = [row[1] for row in full_data]
+            services_count = [row[2] for row in full_data]
+            
+            # Create figure with subplots
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+            fig.suptitle(f'Monthly Service Sales Analysis - {year}', fontsize=14, fontweight='bold')
+            
+            # Revenue chart
+            ax1.bar(months, revenues, color='#00bcd4', alpha=0.7)
+            ax1.set_title('Monthly Service Revenue', fontweight='bold')
+            ax1.set_ylabel('Revenue (₱)')
+            ax1.grid(axis='y', alpha=0.3)
+            
+            # Services count chart
+            ax2.bar(months, services_count, color='#4caf50', alpha=0.7)
+            ax2.set_title('Monthly Services Completed', fontweight='bold')
+            ax2.set_ylabel('Services Count')
+            ax2.set_xlabel('Month')
+            ax2.grid(axis='y', alpha=0.3)
+            
+            plt.tight_layout()
+            
+            # Embed in tkinter
+            canvas = FigureCanvasTkAgg(fig, self.service_charts_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill='both', expand=True, padx=20, pady=20)
+            
+        except ImportError:
+            self.show_no_service_data_message(self.service_charts_frame, "Matplotlib not available for charts")
+        except Exception as e:
+            print(f"Error creating monthly charts: {e}")
+            self.show_no_service_data_message(self.service_charts_frame, f"Error creating charts: {str(e)}")
+
+    def create_service_yearly_charts(self, data):
+        """Create yearly service sales charts"""
+        if not data:
+            self.show_no_service_data_message(self.service_charts_frame, "No yearly service data available for charts")
+            return
+        
+        try:
+            import matplotlib.pyplot as plt
+            from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+            
+            years = [row[0] for row in data]
+            revenues = [row[1] for row in data]
+            services_count = [row[2] for row in data]
+            
+            # Create figure with subplots
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+            fig.suptitle('Yearly Service Sales Analysis', fontsize=14, fontweight='bold')
+            
+            # Revenue chart
+            ax1.bar(years, revenues, color='#00bcd4', alpha=0.7)
+            ax1.set_title('Yearly Service Revenue', fontweight='bold')
+            ax1.set_ylabel('Revenue (₱)')
+            ax1.grid(axis='y', alpha=0.3)
+            
+            # Services count chart
+            ax2.bar(years, services_count, color='#4caf50', alpha=0.7)
+            ax2.set_title('Yearly Services Completed', fontweight='bold')
+            ax2.set_ylabel('Services Count')
+            ax2.set_xlabel('Year')
+            ax2.grid(axis='y', alpha=0.3)
+            
+            plt.tight_layout()
+            
+            # Embed in tkinter
+            canvas = FigureCanvasTkAgg(fig, self.service_charts_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill='both', expand=True, padx=20, pady=20)
+            
+        except ImportError:
+            self.show_no_service_data_message(self.service_charts_frame, "Matplotlib not available for charts")
+        except Exception as e:
+            print(f"Error creating yearly charts: {e}")
+            self.show_no_service_data_message(self.service_charts_frame, f"Error creating charts: {str(e)}")
+
+    def display_service_detailed_data(self, data, period_type):
+        """Display detailed service data in table format"""
+        if not data:
+            self.show_no_service_data_message(self.service_detailed_frame, f"No {period_type.lower()} service data available")
+            return
+            
+        table_frame = ttk.Frame(self.service_detailed_frame, style='Content.TFrame')
+        table_frame.pack(fill='both', expand=True, padx=20, pady=20)
+        
+        ttk.Label(table_frame, text=f"{period_type} Service Sales Detailed Data", style='SectionTitle.TLabel').pack(anchor='w', pady=(0, 20))
+        
+        # Create treeview based on period type
+        if period_type == 'Daily':
+            columns = ('Date', 'Revenue', 'Services', 'Customers', 'Avg. Service Value')
+            tree = ttk.Treeview(table_frame, columns=columns, show='headings', style='Modern.Treeview', height=15)
+            
+            for col in columns:
+                tree.heading(col, text=col)
+                tree.column(col, width=140)
+            
+            for row in data:
+                date_obj = datetime.strptime(row[0], '%Y-%m-%d')
+                formatted_date = date_obj.strftime('%b %d, %Y')
+                avg_service = row[1] / row[2] if row[2] > 0 else 0
+                
+                tree.insert('', 'end', values=(
+                    formatted_date,
+                    f"₱{row[1]:,.2f}",
+                    f"{row[2]:,}",
+                    f"{row[3]:,}",
+                    f"₱{avg_service:,.2f}"
+                ))
+                
+        elif period_type == 'Weekly':
+            columns = ('Week', 'Period', 'Revenue', 'Services', 'Customers', 'Avg. Daily Revenue')
+            tree = ttk.Treeview(table_frame, columns=columns, show='headings', style='Modern.Treeview', height=12)
+            
+            for col in columns:
+                tree.heading(col, text=col)
+                tree.column(col, width=120)
+            
+            for row in data:
+                week_num = row[0].split('-W')[1]
+                start_date = datetime.strptime(row[1], '%Y-%m-%d').strftime('%b %d')
+                end_date = datetime.strptime(row[2], '%Y-%m-%d').strftime('%b %d')
+                period = f"{start_date} - {end_date}"
+                avg_daily = row[3] / 7  # Approximation
+                
+                tree.insert('', 'end', values=(
+                    f"Week {week_num}",
+                    period,
+                    f"₱{row[3]:,.2f}",
+                    f"{row[4]:,}",
+                    f"{row[5]:,}",
+                    f"₱{avg_daily:,.2f}"
+                ))
+                
+        elif period_type == 'Monthly':
+            columns = ('Month', 'Revenue', 'Services', 'Customers', 'Avg. Daily Revenue')
+            tree = ttk.Treeview(table_frame, columns=columns, show='headings', style='Modern.Treeview', height=12)
+            
+            for col in columns:
+                tree.heading(col, text=col)
+                tree.column(col, width=120)
+            
+            month_names = ['January', 'February', 'March', 'April', 'May', 'June', 
+                          'July', 'August', 'September', 'October', 'November', 'December']
+            
+            for row in data:
+                month_index = int(row[0]) - 1
+                month_name = month_names[month_index]
+                avg_daily = row[1] / 30  # Approximation
+                
+                tree.insert('', 'end', values=(
+                    month_name,
+                    f"₱{row[1]:,.2f}",
+                    f"{row[2]:,}",
+                    f"{row[3]:,}",
+                    f"₱{avg_daily:,.2f}"
+                ))
+                
+        elif period_type == 'Yearly':
+            columns = ('Year', 'Revenue', 'Services', 'Customers', 'Avg. Monthly Revenue')
+            tree = ttk.Treeview(table_frame, columns=columns, show='headings', style='Modern.Treeview', height=8)
+            
+            for col in columns:
+                tree.heading(col, text=col)
+                tree.column(col, width=120)
+            
+            for row in data:
+                avg_monthly = row[1] / 12  # Approximation
+                
+                tree.insert('', 'end', values=(
+                    row[0],
+                    f"₱{row[1]:,.2f}",
+                    f"{row[2]:,}",
+                    f"{row[3]:,}",
+                    f"₱{avg_monthly:,.2f}"
+                ))
     
+        scrollbar = ttk.Scrollbar(table_frame, orient='vertical', command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        
+        tree.pack(side='left', fill='both', expand=True)
+        scrollbar.pack(side='right', fill='y')
+
+    def show_no_service_data_message(self, parent, message):
+        """Show message when no service data is available"""
+        msg_frame = ttk.Frame(parent, style='Content.TFrame')
+        msg_frame.pack(fill='both', expand=True)
+        
+        ttk.Label(msg_frame, text=message, style='Placeholder.TLabel', justify='center').pack(expand=True)
+
+    def export_service_sales_report(self):
+        """Export service sales report to CSV"""
+        try:
+            period = self.sales_period_var.get().lower()
+            filename = f"service_sales_report_{period}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            
+            # Get data based on period
+            if period == 'daily':
+                data = self.get_service_daily_data()
+                headers = ['Date', 'Revenue', 'Services_Count', 'Unique_Customers']
+            elif period == 'weekly':
+                data = self.get_service_weekly_data()
+                headers = ['Week', 'Week_Start', 'Week_End', 'Revenue', 'Services_Count', 'Unique_Customers']
+            elif period == 'monthly':
+                year = int(self.service_year_var.get())
+                data = self.get_service_monthly_data(year)
+                headers = ['Month', 'Revenue', 'Services_Count', 'Unique_Customers']
+            elif period == 'yearly':
+                data = self.get_service_yearly_data()
+                headers = ['Year', 'Revenue', 'Services_Count', 'Unique_Customers']
+            
+            if not data:
+                messagebox.showinfo("Export", "No service sales data available to export.")
+                return
+            
+            # Create CSV content
+            csv_content = ','.join(headers) + '\n'
+            for row in data:
+                csv_content += ','.join(str(field) for field in row) + '\n'
+            
+            # Save to file
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write(csv_content)
+            
+            messagebox.showinfo("Export Successful", f"Service sales report exported to {filename}")
+            
+        except Exception as e:
+            messagebox.showerror("Export Error", f"Failed to export service sales report: {str(e)}")
+
+    # ... (rest of the existing methods for services management remain the same)
+    # The existing create_services_tab, create_service_history_tab, and all other methods continue below...
+
     def create_services_tab(self, parent):
         """Create the services management tab with search"""
         # Services controls
@@ -351,8 +1226,8 @@ class ServicesModule:
         }
         
         for col in columns:
-            self.services_tree.heading(col, text=col, anchor='center')  # Center-align header
-            self.services_tree.column(col, width=column_widths.get(col, 100), anchor='center')  # Center-align content
+            self.services_tree.heading(col, text=col, anchor='center')
+            self.services_tree.column(col, width=column_widths.get(col, 100), anchor='center')
         
         # Hide ID column
         self.services_tree.column('ID', width=0, stretch=False)
@@ -377,7 +1252,7 @@ class ServicesModule:
         
         # Load services
         self.load_services()
-    
+
     def create_service_history_tab(self, parent):
         """Create the service history tab with search"""
         # History controls
@@ -432,8 +1307,8 @@ class ServicesModule:
         }
         
         for col in history_columns:
-            self.history_tree.heading(col, text=col, anchor='center')  # Center-align header
-            self.history_tree.column(col, width=history_widths.get(col, 100), anchor='center')  # Center-align content
+            self.history_tree.heading(col, text=col, anchor='center')
+            self.history_tree.column(col, width=history_widths.get(col, 100), anchor='center')
         
         # Hide ID column
         self.history_tree.column('ID', width=0, stretch=False)
@@ -454,6 +1329,7 @@ class ServicesModule:
         
         # Load service history
         self.load_service_history()
+
 
     def search_services(self):
         """Search services by name, service ID, or category"""
@@ -848,6 +1724,7 @@ class ServicesModule:
                     # Close dialog and refresh history
                     dialog.destroy()
                     self.load_service_history()
+                    self.load_service_sales_data()  # Refresh sales tab too
                     
                 except Exception as e:
                     print(f"Error confirming booking: {e}")
@@ -1321,6 +2198,7 @@ class ServicesModule:
                     # Close dialog and refresh
                     dialog.destroy()
                     self.load_service_history()
+                    self.load_service_sales_data()  # Refresh sales tab too
                     
                 except Exception as e:
                     print(f"Error updating booking status: {e}")
@@ -1747,6 +2625,7 @@ class ServicesModule:
                 
                 # Refresh the history view
                 self.load_service_history()
+                self.load_service_sales_data()  # Refresh sales tab too
                 
         except Exception as e:
             print(f"Error deleting service record: {e}")
@@ -1910,5 +2789,6 @@ class ServicesModule:
         if self.frame:
             self.load_services()
             self.load_service_history()
+            self.load_service_sales_data()  
             return self.frame
         return None
