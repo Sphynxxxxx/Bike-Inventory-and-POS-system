@@ -570,7 +570,7 @@ class ServicesModule:
         
         for col in columns:
             tree.heading(col, text=col)
-            tree.column(col, width=120)
+            tree.column(col, width=120, anchor='center')
         
         # Add data
         for row in data[:10]:  # Show last 10 days
@@ -644,11 +644,11 @@ class ServicesModule:
         tree.heading('Services', text='Services')
         tree.heading('Customers', text='Customers')
         
-        tree.column('Week', width=80)
-        tree.column('Period', width=150)
-        tree.column('Revenue', width=120)
-        tree.column('Services', width=100)
-        tree.column('Customers', width=100)
+        tree.column('Week', width=80, anchor='center')
+        tree.column('Period', width=150, anchor='center')
+        tree.column('Revenue', width=120, anchor='center')
+        tree.column('Services', width=100, anchor='center')
+        tree.column('Customers', width=100, anchor='center')
         
         # Add data
         for row in data:
@@ -722,7 +722,7 @@ class ServicesModule:
         
         for col in columns:
             tree.heading(col, text=col)
-            tree.column(col, width=120)
+            tree.column(col, width=120, anchor='center')
         
         # Month names
         month_names = ['January', 'February', 'March', 'April', 'May', 'June', 
@@ -800,7 +800,7 @@ class ServicesModule:
         
         for col in columns:
             tree.heading(col, text=col)
-            tree.column(col, width=120)
+            tree.column(col, width=120, anchor='center')
         
         # Add data
         for row in data:
@@ -1096,7 +1096,7 @@ class ServicesModule:
             
             for col in columns:
                 tree.heading(col, text=col)
-                tree.column(col, width=140)
+                tree.column(col, width=140, anchor='center')
             
             for row in data:
                 date_obj = datetime.strptime(row[0], '%Y-%m-%d')
@@ -1117,7 +1117,7 @@ class ServicesModule:
             
             for col in columns:
                 tree.heading(col, text=col)
-                tree.column(col, width=120)
+                tree.column(col, width=120, anchor='center')
             
             for row in data:
                 week_num = row[0].split('-W')[1]
@@ -1141,7 +1141,7 @@ class ServicesModule:
             
             for col in columns:
                 tree.heading(col, text=col)
-                tree.column(col, width=120)
+                tree.column(col, width=120, anchor='center')
             
             month_names = ['January', 'February', 'March', 'April', 'May', 'June', 
                           'July', 'August', 'September', 'October', 'November', 'December']
@@ -1165,7 +1165,7 @@ class ServicesModule:
             
             for col in columns:
                 tree.heading(col, text=col)
-                tree.column(col, width=120)
+                tree.column(col, width=120, anchor='center')
             
             for row in data:
                 avg_monthly = row[1] / 12  # Approximation

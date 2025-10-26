@@ -8,7 +8,7 @@ from statistics import StatisticsModule
 from stockhistory import StockHistoryModule
 from inventory import InventoryModule
 from services import ServicesModule
-from sales import SalesModule  # ADDED: Import the SalesModule
+from sales import SalesModule  
 from ui_components import create_styles, ModernSidebar
 
 class BikeShopInventorySystem:
@@ -29,8 +29,7 @@ class BikeShopInventorySystem:
         # Initialize modules
         self.init_modules()
         
-        # Show default page
-        self.show_sales_entry() 
+        self.show_dashboard() 
 
     def init_modules(self):
         """Initialize all the modular components"""
@@ -40,7 +39,7 @@ class BikeShopInventorySystem:
         self.stock_history_module = StockHistoryModule(self.content_frame, self)
         self.inventory_module = InventoryModule(self.content_frame, self)
         self.services_module = ServicesModule(self.content_frame, self)
-        self.sales_module = SalesModule(self.content_frame, self)  # ADDED: Initialize SalesModule
+        self.sales_module = SalesModule(self.content_frame, self)
         
         self.sales_entry_frame = None
         self.dashboard_frame = None
@@ -48,7 +47,7 @@ class BikeShopInventorySystem:
         self.inventory_frame = None
         self.stock_history_frame = None
         self.services_frame = None
-        self.sales_frame = None  # ADDED: Sales frame reference
+        self.sales_frame = None
 
     def init_database(self):
         """Initialize SQLite database and create tables - UPDATED with customer name and address support"""

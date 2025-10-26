@@ -442,85 +442,163 @@ class InventoryModule:
             print(f"Exception in add_product: {e}") 
 
     def edit_product(self):
-        if not hasattr(self, 'inventory_tree'):
-            messagebox.showwarning("Warning", "Please navigate to inventory first.")
-            return
-            
+        """Edit the selected product"""
         selection = self.inventory_tree.selection()
         if not selection:
             messagebox.showwarning("Warning", "Please select a product to edit.")
             return
             
+        # Get the selected product
         item = self.inventory_tree.item(selection[0])
-        product_id = item['values'][0] 
+        product_id = item['values'][0]  
         
-        self.main_app.cursor.execute('SELECT * FROM products WHERE id = ?', (product_id,))
-        product = self.main_app.cursor.fetchone()
-        
-        if not product:
-            messagebox.showerror("Error", "Product not found!")
-            return
+        try:
+            # Get the current product data for the dialog
+            self.main_app.cursor.execute('''
+                SELECT name, price, stock, category, product_id
+                FROM products WHERE id = ?
+            ''', (product_id,))
             
-        old_stock = product[3]  
-        
-        dialog = ProductDialog(self.main_app.root, "Edit Product", product)
-        if dialog.result:
-            try:
-                new_stock = int(dialog.result['stock'])
-                stock_difference = new_stock - old_stock
+            product = self.main_app.cursor.fetchone()
+            if not product:
+                messagebox.showerror("Error", "Product not found in database!")
+                return
                 
-                # Get the original product_id from the database
-                original_product_id = product[5]  
-                
-                # Format the product_id to ensure consistency
-                formatted_product_id = str(dialog.result['product_id']).strip()
-                
-                if formatted_product_id != original_product_id:
-                    self.main_app.cursor.execute('SELECT COUNT(*) FROM products WHERE product_id = ?', 
-                                    (formatted_product_id,))
+            original_name = product[0]
+            original_category = product[3]
+            original_product_code = product[4]
+            
+
+            product_data = (product_id, product[0], product[1], product[2], product[3], product[4])
+            
+            # Open the product dialog for editing with the product_data tuple
+            dialog = ProductDialog(self.frame.winfo_toplevel(), "Edit Product", product_data)
+            
+            if dialog.result:
+                if original_product_code != dialog.result['product_id']:
+                    # Check if new product ID already exists
+                    self.main_app.cursor.execute('''
+                        SELECT COUNT(*) FROM products WHERE product_id = ? AND id != ?
+                    ''', (dialog.result['product_id'], product_id))
+                    
                     if self.main_app.cursor.fetchone()[0] > 0:
-                        messagebox.showerror("Error", "Product ID already exists! Please use a unique Product ID.")
+                        messagebox.showerror("Error", "A product with this ID already exists!")
                         return
                 
-                self.main_app.cursor.execute('''
-                    UPDATE products SET name = ?, price = ?, stock = ?, category = ?, product_id = ?
-                    WHERE id = ?
-                ''', (dialog.result['name'], float(dialog.result['price']), new_stock,
-                    dialog.result['category'], formatted_product_id, product_id))
-                
-                # Record stock movement if stock changed
-                if stock_difference != 0:
-                    movement_type = 'IN' if stock_difference > 0 else 'OUT'
-                    notes = f"Stock adjusted from {old_stock} to {new_stock} (difference: {stock_difference:+d})"
+                try:
+                    # Start a database transaction
+                    self.main_app.cursor.execute("BEGIN TRANSACTION")
                     
+                    # Update the product in the products table
                     self.main_app.cursor.execute('''
-                        INSERT INTO stock_movements (product_id, product_name, movement_type, quantity, 
-                                                reference_id, notes)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    ''', (formatted_product_id, dialog.result['name'], movement_type, 
-                        abs(stock_difference), f"EDIT_{product_id}", notes))
-                
-                self.main_app.conn.commit()
-                
-                # Refresh display (respects current search)
-                if self.search_var and self.search_var.get().strip():
-                    search_term = self.search_var.get().strip()
-                    self.search_products(search_term)
-                    self.update_statistics(search_term)
-                else:
-                    self.refresh_products()
-                
-                # Refresh stock history if it's currently displayed
-                self.refresh_stock_history_if_visible()
+                        UPDATE products 
+                        SET name = ?, price = ?, stock = ?, category = ?, product_id = ?
+                        WHERE id = ?
+                    ''', (dialog.result['name'], dialog.result['price'], 
+                        dialog.result['stock'], dialog.result['category'], 
+                        dialog.result['product_id'], product_id))
                     
-                messagebox.showinfo("Success", "Product updated successfully!")
-                
-            except sqlite3.IntegrityError:
-                messagebox.showerror("Error", "Product ID already exists!")
-                self.main_app.conn.rollback()
-            except sqlite3.Error as e:
-                messagebox.showerror("Error", f"Failed to update product: {str(e)}")
-                self.main_app.conn.rollback()
+                    print(f"Updated product in products table: {dialog.result['name']}")
+                    
+                    # Check if any attributes have changed that need to be synchronized
+                    name_changed = original_name != dialog.result['name']
+                    category_changed = original_category != dialog.result['category']
+                    product_code_changed = original_product_code != dialog.result['product_id']
+                    
+                    if name_changed or category_changed or product_code_changed:
+                        print(f"Changes detected: Name: {name_changed}, Category: {category_changed}, Product ID: {product_code_changed}")
+                        
+                        # First update stock_movements table
+                        try:
+                            if name_changed or category_changed:
+                                self.main_app.cursor.execute('''
+                                    UPDATE stock_movements 
+                                    SET product_name = ?, category = ?
+                                    WHERE product_id = ?
+                                ''', (dialog.result['name'], dialog.result['category'], original_product_code))
+                                
+                                sm_rows = self.main_app.cursor.rowcount
+                                print(f"Updated name/category for {sm_rows} rows in stock_movements table")
+                            
+                            if product_code_changed:
+                                # Update product_id in stock_movements
+                                self.main_app.cursor.execute('''
+                                    UPDATE stock_movements 
+                                    SET product_id = ?
+                                    WHERE product_id = ?
+                                ''', (dialog.result['product_id'], original_product_code))
+                                
+                                sm_id_rows = self.main_app.cursor.rowcount
+                                print(f"Updated product_id for {sm_id_rows} rows in stock_movements table")
+                        except Exception as e:
+                            print(f"Error updating stock_movements: {e}")
+                        
+                        # Then update sales table
+                        try:
+                            if name_changed or category_changed:
+                                # Update name and/or category in sales
+                                self.main_app.cursor.execute('''
+                                    UPDATE sales 
+                                    SET product_name = ?, product_category = ?
+                                    WHERE product_id = ?
+                                ''', (dialog.result['name'], dialog.result['category'], original_product_code))
+                                
+                                sales_rows = self.main_app.cursor.rowcount
+                                print(f"Updated name/category for {sales_rows} rows in sales table")
+                            
+                            if product_code_changed:
+                                # Update product_id in sales
+                                self.main_app.cursor.execute('''
+                                    UPDATE sales 
+                                    SET product_id = ?
+                                    WHERE product_id = ?
+                                ''', (dialog.result['product_id'], original_product_code))
+                                
+                                sales_id_rows = self.main_app.cursor.rowcount
+                                print(f"Updated product_id for {sales_id_rows} rows in sales table")
+                        except Exception as e:
+                            print(f"Error updating sales: {e}")
+                    
+                    # Commit all the database changes
+                    self.main_app.conn.commit()
+                    print("Database transaction committed successfully")
+                    
+                    # Refresh the inventory display
+                    if self.search_var and self.search_var.get().strip():
+                        search_term = self.search_var.get().strip()
+                        self.search_products(search_term)
+                        self.update_statistics(search_term)
+                    else:
+                        self.refresh_products()
+                    
+                    # Force refresh the stock history module if it's visible
+                    try:
+                        if hasattr(self.main_app, 'stock_history_module'):
+                            stock_history = self.main_app.stock_history_module
+                            if hasattr(stock_history, 'refresh_stock_history'):
+                                stock_history.refresh_stock_history()
+                                print("Stock history refreshed")
+                            else:
+                                print("stock_history_module does not have refresh_stock_history method")
+                        else:
+                            print("main_app does not have stock_history_module attribute")
+                    except Exception as e:
+                        print(f"Error refreshing stock history: {e}")
+                    
+                    # Show success message
+                    messagebox.showinfo("Success", "Product updated successfully!")
+                    
+                except sqlite3.Error as e:
+                    print(f"Database error: {e}")
+                    self.main_app.conn.rollback()
+                    messagebox.showerror("Error", f"Failed to update product: {str(e)}")
+                except Exception as e:
+                    print(f"Unexpected error during update: {e}")
+                    self.main_app.conn.rollback()
+                    messagebox.showerror("Error", f"An unexpected error occurred: {str(e)}")
+        except Exception as e:
+            print(f"Error in edit_product: {e}")
+            messagebox.showerror("Error", f"An unexpected error occurred: {str(e)}")
 
     def delete_product(self):
         if not hasattr(self, 'inventory_tree'):

@@ -148,17 +148,23 @@ class PointOfSaleModule:
         cart_frame = ttk.Frame(right_panel, style='Card.TFrame')
         cart_frame.pack(fill='both', expand=True, padx=20, pady=(0, 15))
         
-        # Cart treeview
-        cart_columns = ('Product', 'Qty', 'Price', 'Total')
+        # Cart treeview with trash icon column
+        cart_columns = ('Product', 'Qty', 'Price', 'Total', 'Action')
         self.cart_tree = ttk.Treeview(cart_frame, columns=cart_columns, 
                                      show='headings', style='Modern.Treeview', height=12)
         
-        for col in cart_columns:
-            self.cart_tree.heading(col, text=col, anchor='center')
-            if col == 'Product':
-                self.cart_tree.column(col, width=150, anchor='center')
-            else:
-                self.cart_tree.column(col, width=80, anchor='center')
+        # Configure columns
+        self.cart_tree.heading('Product', text='Product', anchor='center')
+        self.cart_tree.heading('Qty', text='Qty', anchor='center')
+        self.cart_tree.heading('Price', text='Price', anchor='center')
+        self.cart_tree.heading('Total', text='Total', anchor='center')
+        self.cart_tree.heading('Action', text='', anchor='center')  # Empty header for trash icon
+        
+        self.cart_tree.column('Product', width=140, anchor='center')
+        self.cart_tree.column('Qty', width=60, anchor='center')
+        self.cart_tree.column('Price', width=80, anchor='center')
+        self.cart_tree.column('Total', width=80, anchor='center')
+        self.cart_tree.column('Action', width=40, anchor='center')  # Smaller column for trash icon
         
         # Scrollbar for cart
         cart_scrollbar = ttk.Scrollbar(cart_frame, orient='vertical', 
@@ -168,9 +174,8 @@ class PointOfSaleModule:
         self.cart_tree.pack(side='left', fill='both', expand=True)
         cart_scrollbar.pack(side='right', fill='y')
         
-        # Bind keys for cart management
-        self.cart_tree.bind('<Delete>', self.remove_cart_item)
-        self.cart_tree.bind('<Double-1>', self.edit_cart_item_quantity)
+        # Bind double-click to edit quantity (on the quantity column only)
+        self.cart_tree.bind('<Double-1>', self.on_cart_item_double_click)
         
         # Total and checkout section
         checkout_frame = ttk.Frame(right_panel, style='Card.TFrame')
@@ -208,7 +213,54 @@ class PointOfSaleModule:
         self.customer_entry.focus()
         
         return self.frame
-    
+
+    def on_cart_item_double_click(self, event):
+        """Handle double-click on cart item - edit quantity or remove"""
+        region = self.cart_tree.identify("region", event.x, event.y)
+        if region == "cell":
+            column = self.cart_tree.identify_column(event.x)
+            item = self.cart_tree.identify_row(event.y)
+            
+            if item:
+                # If double-clicked on Action column (trash icon)
+                if column == "#5":  # Action column
+                    self.remove_cart_item_by_index(self.cart_tree.index(item))
+                # If double-clicked on Qty column
+                elif column == "#2":  # Qty column
+                    self.edit_cart_item_quantity_by_index(self.cart_tree.index(item))
+
+    def remove_cart_item_by_index(self, index):
+        """Remove cart item by index"""
+        if 0 <= index < len(self.cart_items):
+            product_name = self.cart_items[index]['product_name']
+            if messagebox.askyesno("Confirm Removal", f"Remove '{product_name}' from cart?"):
+                removed_item = self.cart_items.pop(index)
+                self.refresh_cart()
+                print(f"Removed {removed_item['product_name']} from cart")
+
+    def edit_cart_item_quantity_by_index(self, index):
+        """Edit quantity of cart item by index"""
+        if not (0 <= index < len(self.cart_items)):
+            return
+        
+        cart_item = self.cart_items[index]
+        
+        # Get available stock
+        current_stock = self.main_app.get_current_stock(cart_item['product_id'])
+        
+        # Ask for new quantity
+        new_qty = simpledialog.askinteger(
+            "Edit Quantity",
+            f"Enter new quantity for {cart_item['product_name']}:\n(Available stock: {current_stock})",
+            initialvalue=cart_item['quantity'],
+            minvalue=1,
+            maxvalue=current_stock
+        )
+        
+        if new_qty and new_qty != cart_item['quantity']:
+            self.cart_items[index]['quantity'] = new_qty
+            self.refresh_cart()
+
     def focus_product_search(self, event=None):
         """Focus on product search after customer entry"""
         self.search_entry.focus()
@@ -216,8 +268,8 @@ class PointOfSaleModule:
     def load_products(self):
         """Load all products into memory and display"""
         try:
-            # Get all products and store them
-            self.all_products = self.main_app.get_all_products()
+            self.main_app.cursor.execute('SELECT id, name, price, stock, category, product_id FROM products ORDER BY name')
+            self.all_products = self.main_app.cursor.fetchall()
             self.display_products(self.all_products)
                 
         except Exception as e:
@@ -250,18 +302,21 @@ class PointOfSaleModule:
         # Add products to treeview
         for product in products:
             if len(product) > 4:
-                category = product[4]
+                category = product[4] if product[4] else 'General'
             else:
                 category = 'General'
                 
+            display_id = product[5] if len(product) > 5 and product[5] else f"ID_{product[0]}"
+                
             self.product_tree.insert('', 'end', values=(
-                product[0],  # product_id
+                product[0],  
                 product[1],  # name
                 category,    # category
                 f"₱{product[2]:.2f}",  # price
                 product[3]   # stock
             ))
         
+        # Update product count
         self.product_count_var.set(f"Products: {len(products)}")
     
     def filter_by_category(self, event=None):
@@ -385,46 +440,6 @@ class PointOfSaleModule:
         self.apply_filters()
         self.search_entry.focus()
 
-
-    def load_products(self):
-        """Load all products into memory and display"""
-        try:
-            self.main_app.cursor.execute('SELECT id, name, price, stock, category, product_id FROM products ORDER BY name')
-            self.all_products = self.main_app.cursor.fetchall()
-            self.display_products(self.all_products)
-                
-        except Exception as e:
-            print(f"Error loading products: {e}")
-            messagebox.showerror("Error", f"Failed to load products: {str(e)}")
-
-
-
-    def display_products(self, products):
-        """Display products in the treeview"""
-        # Clear existing items
-        for item in self.product_tree.get_children():
-            self.product_tree.delete(item)
-        
-        # Add products to treeview
-        for product in products:
-            if len(product) > 4:
-                category = product[4] if product[4] else 'General'
-            else:
-                category = 'General'
-                
-            display_id = product[5] if len(product) > 5 and product[5] else f"ID_{product[0]}"
-                
-            self.product_tree.insert('', 'end', values=(
-                product[0],  
-                product[1],  # name
-                category,    # category
-                f"₱{product[2]:.2f}",  # price
-                product[3]   # stock
-            ))
-        
-        # Update product count
-        self.product_count_var.set(f"Products: {len(products)}")
-    
     def refresh_cart(self):
         """Refresh cart display and calculate total"""
         # Clear cart tree
@@ -433,16 +448,23 @@ class PointOfSaleModule:
         
         total = 0
         
-        # Add items to cart tree
-        for cart_item in self.cart_items:
+        # Add items to cart tree with trash icons
+        for i, cart_item in enumerate(self.cart_items):
             item_total = cart_item['quantity'] * cart_item['unit_price']
             total += item_total
             
+            # Display product name (truncated if too long)
+            product_name = cart_item['product_name']
+            if len(product_name) > 20:
+                product_name = product_name[:20] + "..."
+            
+            # Insert item with trash icon in Action column
             self.cart_tree.insert('', 'end', values=(
-                cart_item['product_name'][:20] + "..." if len(cart_item['product_name']) > 20 else cart_item['product_name'],
+                product_name,
                 cart_item['quantity'],
                 f"₱{cart_item['unit_price']:.2f}",
-                f"₱{item_total:.2f}"
+                f"₱{item_total:.2f}",
+                "🗑️"  # Trash icon
             ))
         
         # Update total display
@@ -452,47 +474,14 @@ class PointOfSaleModule:
         self.cart_count_var.set(f"Items: {len(self.cart_items)}")
     
     def remove_cart_item(self, event=None):
-        """Remove selected item from cart"""
+        """Remove selected item from cart using Delete key"""
         selection = self.cart_tree.selection()
         if not selection:
             return
         
         # Get the index of selected item
         selected_index = self.cart_tree.index(selection[0])
-        
-        # Remove from cart_items list
-        if 0 <= selected_index < len(self.cart_items):
-            removed_item = self.cart_items.pop(selected_index)
-            self.refresh_cart()
-            print(f"Removed {removed_item['product_name']} from cart")
-    
-    def edit_cart_item_quantity(self, event=None):
-        """Edit quantity of cart item"""
-        selection = self.cart_tree.selection()
-        if not selection:
-            return
-        
-        selected_index = self.cart_tree.index(selection[0])
-        if not (0 <= selected_index < len(self.cart_items)):
-            return
-        
-        cart_item = self.cart_items[selected_index]
-        
-        # Get available stock
-        current_stock = self.main_app.get_current_stock(cart_item['product_id'])
-        
-        # Ask for new quantity
-        new_qty = simpledialog.askinteger(
-            "Edit Quantity",
-            f"Enter new quantity for {cart_item['product_name']}:\n(Available stock: {current_stock})",
-            initialvalue=cart_item['quantity'],
-            minvalue=1,
-            maxvalue=current_stock
-        )
-        
-        if new_qty and new_qty != cart_item['quantity']:
-            self.cart_items[selected_index]['quantity'] = new_qty
-            self.refresh_cart()
+        self.remove_cart_item_by_index(selected_index)
     
     def clear_cart(self):
         """Clear all items from cart"""
@@ -738,8 +727,6 @@ class PointOfSaleModule:
     def actual_print_receipt(self, receipt_window):
         """Handle actual printing of receipt"""
         try:
-            # This would integrate with your system's printing functionality
-            #messagebox.showinfo("Print", "Receipt sent to printer!\n(Print functionality would be implemented here)")
             receipt_window.destroy()
         except Exception as e:
             messagebox.showerror("Print Error", f"Failed to print receipt: {str(e)}")
