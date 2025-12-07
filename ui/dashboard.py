@@ -12,6 +12,29 @@ class DashboardModule:
         self.main_app = main_app
         self.frame = None
         
+    def mask_customer_name(self, name):
+        """Mask customer name for privacy (e.g., John Doe -> J*** D***)"""
+        if not name or name == "N/A" or name == "Guest":
+            return name
+        
+        # Split name into parts
+        parts = name.split()
+        
+        if len(parts) == 0:
+            return "****"
+        
+        # Mask each part
+        masked_parts = []
+        for part in parts:
+            if len(part) <= 1:
+                masked_parts.append(part)
+            else:
+                # Keep first character, mask the rest
+                masked = part[0] + '*' * (len(part) - 1)
+                masked_parts.append(masked)
+        
+        return ' '.join(masked_parts)
+        
     def create_interface(self):
         """Create the dashboard with product stock chart"""
         self.frame = ttk.Frame(self.parent, style='Content.TFrame')
@@ -286,7 +309,7 @@ class DashboardModule:
 
     
     def create_recent_sales_table(self, parent):
-        """Create recent sales table - FIXED amount formatting to always show proper decimals"""
+        """Create recent sales table with masked customer names"""
         # Header
         header_frame = ttk.Frame(parent, style='Card.TFrame')
         header_frame.pack(fill='x', padx=20, pady=(15, 10))
@@ -311,13 +334,11 @@ class DashboardModule:
         tree.heading('Date', text='Date', anchor='center')
         tree.heading('Product', text='Product', anchor='center')
         tree.heading('Customer', text='Customer', anchor='center')
-        #tree.heading('Amount', text='Amount')
         
         tree.column('#', width=30, anchor='center')
         tree.column('Date', width=70, anchor='center')
         tree.column('Product', width=100, anchor='center')
         tree.column('Customer', width=80, anchor='center')
-        #tree.column('Amount', width=80)
         
         # Get recent sales data
         recent_sales = self.main_app.get_recent_sales(5)
@@ -332,6 +353,10 @@ class DashboardModule:
                     formatted_date = sale_date[:6]
             else:
                 formatted_date = str(sale_date)[:6]
+            
+            # Mask customer name
+            customer_name = sale[3] if sale[3] else "Guest"
+            masked_customer = self.mask_customer_name(customer_name)
             
             try:
                 total_amount = sale[5]
@@ -355,8 +380,8 @@ class DashboardModule:
                 f"{i:02d}",
                 formatted_date,
                 sale[1][:12] + "..." if len(sale[1]) > 12 else sale[1],  
-                sale[3][:10] + "..." if sale[3] and len(sale[3]) > 10 else (sale[3] or "N/A"),
-                formatted_amount  # Now properly formatted with consistent decimal places
+                masked_customer[:10] + "..." if len(masked_customer) > 10 else masked_customer,
+                formatted_amount
             ))
         
         tree.pack(fill='both', expand=True)
@@ -461,7 +486,7 @@ class DashboardModule:
                   style='Primary.TButton').pack(side='right', padx=(0, 10))
     
     def refresh_sales_table(self, tree):
-        """Refresh the sales table with current data - Fixed amount formatting"""
+        """Refresh the sales table with current data and masked customer names"""
         # Clear existing items
         for item in tree.get_children():
             tree.delete(item)
@@ -541,7 +566,11 @@ class DashboardModule:
                     # Safe value extraction with defaults
                     sale_id = sale[0] if sale[0] is not None else 0
                     product_name = sale[2] if sale[2] is not None else "N/A"
+                    
+                    # Mask customer name
                     customer_name = sale[3] if sale[3] is not None else "Guest"
+                    masked_customer = self.mask_customer_name(customer_name)
+                    
                     quantity = sale[4] if sale[4] is not None else 0
                     
                     # Fix unit price formatting
@@ -585,7 +614,7 @@ class DashboardModule:
                         date_str,           # Date
                         time_str,           # Time
                         product_name[:25] + "..." if len(product_name) > 25 else product_name,  # Product name
-                        customer_name[:15] + "..." if len(customer_name) > 15 else customer_name,  # Customer
+                        masked_customer[:15] + "..." if len(masked_customer) > 15 else masked_customer,  # Masked customer
                         quantity,           # Quantity
                         formatted_unit_price,  # Unit price - properly formatted
                         formatted_total,    # Total - properly formatted

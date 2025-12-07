@@ -154,7 +154,7 @@ class CustomerQuantityDialog:
             print(f"Error in CustomerQuantityDialog.cancel(): {e}")
 
 class ProductDialog:
-    def __init__(self, parent, title, product_data=None):
+    def __init__(self, parent, title, product_data=None, auto_product_id=None):
         self.result = None
         try:
             self.dialog = tk.Toplevel(parent)
@@ -170,7 +170,7 @@ class ProductDialog:
             y = (self.dialog.winfo_screenheight() // 2) - (550 // 2)
             self.dialog.geometry(f"450x550+{x}+{y}")
             
-            self.create_widgets(product_data)
+            self.create_widgets(product_data, auto_product_id)
             
             # Focus on the first entry
             self.name_entry.focus_set()
@@ -180,7 +180,7 @@ class ProductDialog:
             print(f"Error creating ProductDialog: {e}")
             messagebox.showerror("Error", f"Failed to create product dialog: {str(e)}")
 
-    def create_widgets(self, product_data):
+    def create_widgets(self, product_data, auto_product_id):
         try:
             main_frame = ttk.Frame(self.dialog, padding="30", style='Content.TFrame')
             main_frame.pack(fill='both', expand=True)
@@ -189,37 +189,53 @@ class ProductDialog:
             title_label = ttk.Label(main_frame, text="Product Information", style='DialogTitle.TLabel')
             title_label.grid(row=0, column=0, columnspan=2, pady=(0, 20), sticky='w')
 
+            # Product ID - First field with auto-generation
+            ttk.Label(main_frame, text="Product ID:", style='FieldLabel.TLabel').grid(row=1, column=0, sticky='w', pady=8)
+            self.product_id_var = tk.StringVar()
+            
+            # Set product ID value and state
+            if auto_product_id:
+                # New product with auto-generated ID (read-only)
+                self.product_id_var.set(auto_product_id)
+                self.product_id_entry = ttk.Entry(main_frame, textvariable=self.product_id_var, 
+                                                 width=35, style='Modern.TEntry', state='readonly')
+            elif product_data:
+                # Editing existing product (read-only to maintain data integrity)
+                self.product_id_var.set(product_data[5])
+                self.product_id_entry = ttk.Entry(main_frame, textvariable=self.product_id_var, 
+                                                 width=35, style='Modern.TEntry', state='readonly')
+            else:
+                # Fallback case
+                self.product_id_entry = ttk.Entry(main_frame, textvariable=self.product_id_var, 
+                                                 width=35, style='Modern.TEntry')
+            
+            self.product_id_entry.grid(row=1, column=1, pady=8, sticky='ew')
+
             # Product Name
-            ttk.Label(main_frame, text="Product Name:", style='FieldLabel.TLabel').grid(row=1, column=0, sticky='w', pady=8)
+            ttk.Label(main_frame, text="Product Name:", style='FieldLabel.TLabel').grid(row=2, column=0, sticky='w', pady=8)
             self.name_var = tk.StringVar(value=product_data[1] if product_data else "")
             self.name_entry = ttk.Entry(main_frame, textvariable=self.name_var, width=35, style='Modern.TEntry')
-            self.name_entry.grid(row=1, column=1, pady=8, sticky='ew')
+            self.name_entry.grid(row=2, column=1, pady=8, sticky='ew')
 
             # Price
-            ttk.Label(main_frame, text="Price (₱):", style='FieldLabel.TLabel').grid(row=2, column=0, sticky='w', pady=8)
+            ttk.Label(main_frame, text="Price (₱):", style='FieldLabel.TLabel').grid(row=3, column=0, sticky='w', pady=8)
             self.price_var = tk.StringVar(value=str(product_data[2]) if product_data else "0.00")
             self.price_entry = ttk.Entry(main_frame, textvariable=self.price_var, width=35, style='Modern.TEntry')
-            self.price_entry.grid(row=2, column=1, pady=8, sticky='ew')
+            self.price_entry.grid(row=3, column=1, pady=8, sticky='ew')
 
-            # Stock Quantity - FIXED: Added the missing stock field
-            ttk.Label(main_frame, text="Stock Quantity:", style='FieldLabel.TLabel').grid(row=3, column=0, sticky='w', pady=8)
+            # Stock Quantity
+            ttk.Label(main_frame, text="Stock Quantity:", style='FieldLabel.TLabel').grid(row=4, column=0, sticky='w', pady=8)
             self.stock_var = tk.StringVar(value=str(product_data[3]) if product_data else "0")
             self.stock_entry = ttk.Entry(main_frame, textvariable=self.stock_var, width=35, style='Modern.TEntry')
-            self.stock_entry.grid(row=3, column=1, pady=8, sticky='ew')
+            self.stock_entry.grid(row=4, column=1, pady=8, sticky='ew')
 
             # Category
-            ttk.Label(main_frame, text="Category:", style='FieldLabel.TLabel').grid(row=4, column=0, sticky='w', pady=8)
+            ttk.Label(main_frame, text="Category:", style='FieldLabel.TLabel').grid(row=5, column=0, sticky='w', pady=8)
             self.category_var = tk.StringVar(value=product_data[4] if product_data else "Bikes")
             self.category_combo = ttk.Combobox(main_frame, textvariable=self.category_var, width=33, style='Modern.TCombobox')
             self.category_combo['values'] = ('Bikes', 'Accessories', 'Parts', 'Clothing', 'Maintenance')
             self.category_combo.state(['readonly'])
-            self.category_combo.grid(row=4, column=1, pady=8, sticky='ew')
-
-            # Product ID
-            ttk.Label(main_frame, text="Product ID:", style='FieldLabel.TLabel').grid(row=5, column=0, sticky='w', pady=8)
-            self.product_id_var = tk.StringVar(value=product_data[5] if product_data else "")
-            self.product_id_entry = ttk.Entry(main_frame, textvariable=self.product_id_var, width=35, style='Modern.TEntry')
-            self.product_id_entry.grid(row=5, column=1, pady=8, sticky='ew')
+            self.category_combo.grid(row=5, column=1, pady=8, sticky='ew')
 
             # Configure column weights
             main_frame.columnconfigure(1, weight=1)
@@ -244,8 +260,9 @@ class ProductDialog:
             
             # Bind Tab key to move between fields and Enter to save
             for widget in [self.name_entry, self.price_entry, self.stock_entry, 
-                         self.category_combo, self.product_id_entry]:
+                         self.category_combo]:
                 widget.bind('<Return>', lambda e: self.save())
+                
         except Exception as e:
             print(f"Error creating widgets in ProductDialog: {e}")
 
@@ -266,7 +283,6 @@ class ProductDialog:
                 
             if not product_id:
                 messagebox.showerror("Validation Error", "Product ID is required!")
-                self.product_id_entry.focus_set()
                 return
 
             # Validate and convert numeric fields
@@ -730,7 +746,7 @@ class SalesEntryFrame(ttk.Frame):
             self.search_category_var = tk.StringVar()
             category_filter = ttk.Combobox(search_frame, textvariable=self.search_category_var, 
                                          style='Modern.TCombobox', state='readonly')
-            category_filter['values'] = ('All Categories', 'Bikes', 'Accessories', 'Parts', 'Clothing', 'Services')
+            category_filter['values'] = ('All Categories', 'Bikes', 'Accessories', 'Parts', 'Clothing', 'Maintenance')
             category_filter.set('All Categories')
             category_filter.pack(fill='x', pady=(0, 10))
             category_filter.bind('<<ComboboxSelected>>', self.filter_products)

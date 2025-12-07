@@ -9,6 +9,37 @@ class InventoryModule:
         self.main_app = main_app
         self.frame = None
         self.search_var = None
+        self.category_filter_var = None
+        
+    def generate_product_id(self):
+        """Generate a unique product ID in format PROD-XXXX"""
+        try:
+            # Get the highest existing product ID number
+            self.main_app.cursor.execute('''
+                SELECT product_id FROM products 
+                WHERE product_id LIKE 'PROD-%'
+                ORDER BY CAST(SUBSTR(product_id, 6) AS INTEGER) DESC 
+                LIMIT 1
+            ''')
+            
+            result = self.main_app.cursor.fetchone()
+            
+            if result:
+                # Extract the number from the last product ID (e.g., "PROD-0001" -> 1)
+                last_number = int(result[0].split('-')[1])
+                new_number = last_number + 1
+            else:
+                # First product ID
+                new_number = 1
+            
+            # Format as PROD-XXXX (e.g., PROD-0001, PROD-0002, etc.)
+            return f"PROD-{new_number:04d}"
+            
+        except Exception as e:
+            print(f"Error generating product ID: {e}")
+            # Fallback to timestamp-based ID if there's an error
+            import time
+            return f"PROD-{int(time.time()) % 10000:04d}"
         
     def create_interface(self):
         """Create the inventory management interface"""
@@ -23,25 +54,35 @@ class InventoryModule:
         # Statistics Panel
         self.create_statistics_panel()
         
-        # Search frame
-        search_frame = ttk.Frame(self.frame, style='Content.TFrame')
-        search_frame.pack(fill='x', padx=30, pady=10)
+        # Filter and Search frame
+        filter_search_frame = ttk.Frame(self.frame, style='Content.TFrame')
+        filter_search_frame.pack(fill='x', padx=30, pady=10)
+        
+        # Category filter dropdown
+        ttk.Label(filter_search_frame, text="Category:", style='FieldLabel.TLabel').pack(side='left', padx=(0, 5))
+        
+        self.category_filter_var = tk.StringVar(value="All Categories")
+        category_combo = ttk.Combobox(filter_search_frame, textvariable=self.category_filter_var,
+                                     values=['All Categories', 'Bikes', 'Accessories', 'Parts', 'Clothing', 'Maintenance'],
+                                     state='readonly', style='Modern.TCombobox', width=18)
+        category_combo.pack(side='left', padx=(0, 20))
+        category_combo.bind('<<ComboboxSelected>>', self.on_filter_change)
         
         # Search box
-        ttk.Label(search_frame, text="Search:", style='Content.TLabel').pack(side='left', padx=(0, 5))
+        ttk.Label(filter_search_frame, text="Search:", style='FieldLabel.TLabel').pack(side='left', padx=(0, 5))
         
         self.search_var = tk.StringVar()
         self.search_var.trace('w', self.on_search_change)
         
-        search_entry = ttk.Entry(search_frame, textvariable=self.search_var, width=30)
+        search_entry = ttk.Entry(filter_search_frame, textvariable=self.search_var, width=30, style='Modern.TEntry')
         search_entry.pack(side='left', padx=(0, 10))
         
-        # Clear search button
-        ttk.Button(search_frame, text="Clear", command=self.clear_search, 
+        # Clear filters button
+        ttk.Button(filter_search_frame, text="Clear Filters", command=self.clear_filters, 
                   style='Secondary.TButton').pack(side='left', padx=(0, 10))
         
         # Search hint label
-        ttk.Label(search_frame, text="(Search by name or product ID)", 
+        ttk.Label(filter_search_frame, text="(Search by name or product ID)", 
                  style='Hint.TLabel').pack(side='left', padx=(10, 0))
         
         # Controls
@@ -55,26 +96,36 @@ class InventoryModule:
         ttk.Button(controls_frame, text="Edit Product", command=self.edit_product, 
                   style='Secondary.TButton').pack(side='left', padx=(0, 10))
         ttk.Button(controls_frame, text="Delete Product", command=self.delete_product, 
-                  style='Danger.TButton').pack(side='left')
+                  style='Danger.TButton').pack(side='left', padx=(0, 10))
+        ttk.Button(controls_frame, text="📊 View Stock History", command=self.view_stock_history, 
+                  style='Primary.TButton').pack(side='left')
         
         # Inventory table
         table_frame = ttk.Frame(self.frame, style='Content.TFrame')
         table_frame.pack(fill='both', expand=True, padx=30, pady=20)
         
         # Create treeview (ID column hidden but stored)
-        columns = ('ID', 'Name', 'Price', 'Stock', 'Category', 'Product ID')
-        display_columns = ('Name', 'Price', 'Stock', 'Category', 'Product ID')
-        self.inventory_tree = ttk.Treeview(table_frame, columns=columns, displaycolumns=display_columns, show='headings', style='Modern.Treeview')
+        columns = ('ID', 'Product ID', 'Name', 'Category', 'Price', 'Stock')
+        display_columns = ('Product ID', 'Name', 'Category', 'Price', 'Stock')
+        self.inventory_tree = ttk.Treeview(table_frame, columns=columns, displaycolumns=display_columns, 
+                                          show='headings', style='Modern.Treeview')
         
         # Set headings and alignment for displayed columns
+        column_configs = {
+            'Product ID': {'width': 120, 'anchor': 'center'},
+            'Name': {'width': 250, 'anchor': 'w'},
+            'Category': {'width': 150, 'anchor': 'center'},
+            'Price': {'width': 120, 'anchor': 'center'},
+            'Stock': {'width': 100, 'anchor': 'center'}
+        }
+        
         for col in display_columns:
-            self.inventory_tree.heading(col, text=col)
-            if col == 'Name':
-                self.inventory_tree.column(col, width=250, anchor='center')
-            elif col == 'Product ID':
-                self.inventory_tree.column(col, width=150, anchor='center')
-            else:
-                self.inventory_tree.column(col, width=120, anchor='center')
+            self.inventory_tree.heading(col, text=col, command=lambda c=col: self.sort_column(c))
+            config = column_configs.get(col, {'width': 120, 'anchor': 'center'})
+            self.inventory_tree.column(col, width=config['width'], anchor=config['anchor'])
+
+        # Bind double-click event to view stock history
+        self.inventory_tree.bind('<Double-1>', lambda e: self.view_stock_history())
 
         # Scrollbar
         scrollbar = ttk.Scrollbar(table_frame, orient='vertical', command=self.inventory_tree.yview)
@@ -83,12 +134,66 @@ class InventoryModule:
         self.inventory_tree.pack(side='left', fill='both', expand=True)
         scrollbar.pack(side='right', fill='y')
         
+        # Status bar showing filtered results
+        self.status_frame = ttk.Frame(self.frame, style='Content.TFrame')
+        self.status_frame.pack(fill='x', padx=30, pady=(0, 10))
+        
+        self.status_label = ttk.Label(self.status_frame, text="", style='FieldLabel.TLabel')
+        self.status_label.pack(side='left')
+        
+        # Hint label
+        hint_label = ttk.Label(self.status_frame, text="💡 Tip: Double-click a product to view its stock history", 
+                              style='ValidationNote.TLabel')
+        hint_label.pack(side='right')
+        
         # Load initial data
         self.refresh_products()
         
         print("Inventory interface created successfully")  # Debug print
         
         return self.frame
+
+    def view_stock_history(self):
+        """View stock history for the selected product"""
+        selection = self.inventory_tree.selection()
+        if not selection:
+            messagebox.showwarning("Warning", "Please select a product to view its stock history.")
+            return
+        
+        item = self.inventory_tree.item(selection[0])
+        product_id = item['values'][0]  # Hidden ID
+        product_code = item['values'][1]  # Product ID
+        product_name = item['values'][2]  # Name
+        current_stock = item['values'][5]  # Stock
+        
+        # Create stock history dialog
+        StockHistoryDialog(self.main_app.root, self.main_app, product_code, product_name, current_stock)
+
+    def sort_column(self, col):
+        """Sort treeview by column"""
+        try:
+            # Get current items
+            items = [(self.inventory_tree.set(item, col), item) for item in self.inventory_tree.get_children('')]
+            
+            # Determine if we should sort as numbers or strings
+            try:
+                # Try to sort as numbers (for Price and Stock columns)
+                if col in ['Price', 'Stock']:
+                    # Remove currency symbol and commas for Price
+                    items = [(float(val.replace('₱', '').replace(',', '')), item) for val, item in items]
+                    items.sort(reverse=False)
+                else:
+                    items.sort(reverse=False)
+            except (ValueError, AttributeError):
+                # Fall back to string sorting
+                items.sort(reverse=False)
+            
+            # Rearrange items in sorted positions
+            for index, (val, item) in enumerate(items):
+                self.inventory_tree.move(item, '', index)
+                
+        except Exception as e:
+            print(f"Error sorting column: {e}")
 
     def create_statistics_panel(self):
         """Create a panel to display inventory statistics"""
@@ -139,70 +244,62 @@ class InventoryModule:
                                              font=('Arial', 24, 'bold'), foreground="#000000")
         self.total_products_label.pack(pady=(0, 15))
 
-    def update_statistics(self, search_term=None):
-        """Update the statistics display based on current view (all products or search results)"""
+    def update_statistics(self, search_term=None, category_filter=None):
+        """Update the statistics display based on current view (all products or filtered results)"""
         try:
+            conditions = []
+            params = []
+            
+            # Build WHERE clause based on filters
             if search_term and search_term.strip():
-                # Statistics for filtered/searched products only
                 search_pattern = f"%{search_term}%"
-                
-                # Calculate total stock units for filtered products
-                self.main_app.cursor.execute('''
-                    SELECT SUM(stock) FROM products 
-                    WHERE name LIKE ? OR product_id LIKE ?
-                ''', (search_pattern, search_pattern))
-                total_stock = self.main_app.cursor.fetchone()[0] or 0
-                
-                # Calculate total inventory value for filtered products
-                self.main_app.cursor.execute('''
-                    SELECT SUM(stock * price) FROM products 
-                    WHERE name LIKE ? OR product_id LIKE ?
-                ''', (search_pattern, search_pattern))
-                total_value = self.main_app.cursor.fetchone()[0] or 0
-                
-                # Get product IDs of filtered products for revenue calculation
-                self.main_app.cursor.execute('''
-                    SELECT product_id FROM products 
-                    WHERE name LIKE ? OR product_id LIKE ?
-                ''', (search_pattern, search_pattern))
-                filtered_product_ids = [row[0] for row in self.main_app.cursor.fetchall()]
-                
-                # Calculate total revenue for filtered products only
-                if filtered_product_ids:
-                    placeholders = ','.join('?' * len(filtered_product_ids))
-                    self.main_app.cursor.execute(f'''
-                        SELECT SUM(total) FROM sales 
-                        WHERE quantity > 0 AND product_id IN ({placeholders})
-                    ''', filtered_product_ids)
-                    total_revenue = self.main_app.cursor.fetchone()[0] or 0
-                else:
-                    total_revenue = 0
-                
-                # Count filtered products
-                self.main_app.cursor.execute('''
-                    SELECT COUNT(*) FROM products 
-                    WHERE name LIKE ? OR product_id LIKE ?
-                ''', (search_pattern, search_pattern))
-                total_products = self.main_app.cursor.fetchone()[0] or 0
-                
-            else:
-                # Statistics for all products (default behavior)
-                # Calculate total stock units
-                self.main_app.cursor.execute('SELECT SUM(stock) FROM products')
-                total_stock = self.main_app.cursor.fetchone()[0] or 0
-                
-                # Calculate total inventory value (stock * price)
-                self.main_app.cursor.execute('SELECT SUM(stock * price) FROM products')
-                total_value = self.main_app.cursor.fetchone()[0] or 0
-                
-                # Calculate total revenue from sales (using 'total' column from sales table)
-                # Only count positive quantities (actual sales, not returns)
-                self.main_app.cursor.execute('SELECT SUM(total) FROM sales WHERE quantity > 0')
+                conditions.append("(name LIKE ? OR product_id LIKE ?)")
+                params.extend([search_pattern, search_pattern])
+            
+            if category_filter and category_filter != "All Categories":
+                conditions.append("category = ?")
+                params.append(category_filter)
+            
+            where_clause = " AND ".join(conditions) if conditions else "1=1"
+            
+            # Calculate total stock units
+            self.main_app.cursor.execute(f'''
+                SELECT SUM(stock) FROM products 
+                WHERE {where_clause}
+            ''', params)
+            total_stock = self.main_app.cursor.fetchone()[0] or 0
+            
+            # Calculate total inventory value
+            self.main_app.cursor.execute(f'''
+                SELECT SUM(stock * price) FROM products 
+                WHERE {where_clause}
+            ''', params)
+            total_value = self.main_app.cursor.fetchone()[0] or 0
+            
+            # Get product IDs for revenue calculation
+            self.main_app.cursor.execute(f'''
+                SELECT product_id FROM products 
+                WHERE {where_clause}
+            ''', params)
+            filtered_product_ids = [row[0] for row in self.main_app.cursor.fetchall()]
+            
+            # Calculate total revenue
+            if filtered_product_ids:
+                placeholders = ','.join('?' * len(filtered_product_ids))
+                self.main_app.cursor.execute(f'''
+                    SELECT SUM(total) FROM sales 
+                    WHERE quantity > 0 AND product_id IN ({placeholders})
+                ''', filtered_product_ids)
                 total_revenue = self.main_app.cursor.fetchone()[0] or 0
-                
-                # Count total products
-                self.main_app.cursor.execute('SELECT COUNT(*) FROM products')
-                total_products = self.main_app.cursor.fetchone()[0] or 0
+            else:
+                total_revenue = 0
+            
+            # Count products
+            self.main_app.cursor.execute(f'''
+                SELECT COUNT(*) FROM products 
+                WHERE {where_clause}
+            ''', params)
+            total_products = self.main_app.cursor.fetchone()[0] or 0
             
             # Update labels
             self.total_stock_label.config(text=f"{total_stock:,}")
@@ -210,8 +307,96 @@ class InventoryModule:
             self.total_revenue_label.config(text=f"₱{total_revenue:,.2f}")
             self.total_products_label.config(text=f"{total_products}")
             
+            # Update status label
+            if conditions:
+                filter_text = []
+                if search_term:
+                    filter_text.append(f"Search: '{search_term}'")
+                if category_filter and category_filter != "All Categories":
+                    filter_text.append(f"Category: {category_filter}")
+                self.status_label.config(text=f"Showing {total_products} products ({', '.join(filter_text)})")
+            else:
+                self.status_label.config(text=f"Showing all {total_products} products")
+            
         except Exception as e:
             print(f"Error updating statistics: {e}")
+
+    def on_filter_change(self, event=None):
+        """Handle category filter changes"""
+        self.apply_filters()
+
+    def on_search_change(self, *args):
+        """Handle search input changes"""
+        self.apply_filters()
+
+    def apply_filters(self):
+        """Apply both category filter and search"""
+        search_term = self.search_var.get().strip()
+        category_filter = self.category_filter_var.get()
+        
+        self.filter_products(search_term, category_filter)
+        self.update_statistics(search_term, category_filter)
+
+    def filter_products(self, search_term, category_filter):
+        """Filter products by search term and/or category"""
+        if hasattr(self, 'inventory_tree') and self.inventory_tree.winfo_exists():
+            try:
+                # Clear existing items
+                for item in self.inventory_tree.get_children():
+                    self.inventory_tree.delete(item)
+                
+                # Build query with filters
+                conditions = []
+                params = []
+                
+                if search_term:
+                    search_pattern = f"%{search_term}%"
+                    conditions.append("(name LIKE ? OR product_id LIKE ?)")
+                    params.extend([search_pattern, search_pattern])
+                
+                if category_filter and category_filter != "All Categories":
+                    conditions.append("category = ?")
+                    params.append(category_filter)
+                
+                where_clause = " AND ".join(conditions) if conditions else "1=1"
+                
+                query = f'''
+                    SELECT id, name, price, stock, category, product_id 
+                    FROM products 
+                    WHERE {where_clause}
+                    ORDER BY category, name
+                '''
+                
+                self.main_app.cursor.execute(query, params)
+                products = self.main_app.cursor.fetchall()
+                
+                # Insert filtered products into treeview
+                for product in products:
+                    self.inventory_tree.insert('', 'end', values=(
+                        product[0],  # id (hidden)
+                        product[5],  # product_id
+                        product[1],  # name
+                        product[4],  # category
+                        f"₱{product[2]:.2f}",  # price
+                        product[3]   # stock
+                    ))
+                
+                print(f"Found {len(products)} products")
+                
+            except Exception as e:
+                print(f"Error filtering products: {e}")
+                messagebox.showerror("Error", f"Failed to filter products: {str(e)}")
+
+    def clear_filters(self):
+        """Clear all filters and show all products"""
+        self.search_var.set("")
+        self.category_filter_var.set("All Categories")
+        self.refresh_products()
+
+    def search_products(self, search_term):
+        """Legacy method - redirects to filter_products"""
+        category_filter = self.category_filter_var.get() if hasattr(self, 'category_filter_var') else "All Categories"
+        self.filter_products(search_term, category_filter)
 
     def add_stock(self):
         """Add stock to an existing product"""
@@ -225,10 +410,10 @@ class InventoryModule:
             return
             
         item = self.inventory_tree.item(selection[0])
-        product_id = item['values'][0] 
-        product_name = item['values'][1]
-        current_stock = item['values'][3]
-        product_code = item['values'][5]  
+        product_id = item['values'][0]  # Hidden ID column
+        product_code = item['values'][1]  # Product ID
+        product_name = item['values'][2]  # Name
+        current_stock = item['values'][5]  # Stock
         
         # Create a simple dialog for stock addition
         stock_dialog = AddStockDialog(self.main_app.root, product_name, current_stock)
@@ -261,13 +446,8 @@ class InventoryModule:
                 
                 self.main_app.conn.commit()
                 
-                # Refresh display (respects current search)
-                if self.search_var and self.search_var.get().strip():
-                    search_term = self.search_var.get().strip()
-                    self.search_products(search_term)
-                    self.update_statistics(search_term)
-                else:
-                    self.refresh_products()
+                # Refresh display (respects current filters)
+                self.apply_filters()
                 
                 # Refresh stock history if it's currently displayed
                 self.refresh_stock_history_if_visible()
@@ -283,69 +463,12 @@ class InventoryModule:
             except Exception as e:
                 messagebox.showerror("Error", f"Unexpected error: {str(e)}")
 
-    def on_search_change(self, *args):
-        """Handle search input changes"""
-        search_term = self.search_var.get().strip()
-        if search_term:
-            self.search_products(search_term)
-            # Update statistics for filtered products
-            self.update_statistics(search_term)
-        else:
-            self.refresh_products()
-            # Update statistics for all products
-            self.update_statistics()
-
-    def search_products(self, search_term):
-        """Search products by name or product ID"""
-        if hasattr(self, 'inventory_tree') and self.inventory_tree.winfo_exists():
-            try:
-                # Clear existing items
-                for item in self.inventory_tree.get_children():
-                    self.inventory_tree.delete(item)
-                
-                
-                search_pattern = f"%{search_term}%"
-                self.main_app.cursor.execute('''
-                    SELECT id, name, price, stock, category, product_id 
-                    FROM products 
-                    WHERE name LIKE ? OR product_id LIKE ? 
-                    ORDER BY name
-                ''', (search_pattern, search_pattern))
-                
-                products = self.main_app.cursor.fetchall()
-                
-                # Insert filtered products into treeview
-                for product in products:
-                    self.inventory_tree.insert('', 'end', values=(
-                        product[0],  # id
-                        product[1],  # name
-                        f"₱{product[2]:.2f}",  # price
-                        product[3],  # stock
-                        product[4],  # category
-                        product[5]   # product_id
-                    ))
-                
-                print(f"Found {len(products)} products matching '{search_term}'")
-                
-            except Exception as e:
-                print(f"Error searching products: {e}")
-                messagebox.showerror("Error", f"Failed to search products: {str(e)}")
-
-    def clear_search(self):
-        """Clear the search box and show all products"""
-        self.search_var.set("")
-        self.refresh_products()
-
     def validate_product_data(self, product_data):
         """Validate product data before adding or updating"""
         try:
             # Validate name
             if not product_data.get('name') or not product_data['name'].strip():
                 raise ValueError("Product name is required!")
-                
-            # Validate product_id
-            if not product_data.get('product_id') or not str(product_data['product_id']).strip():
-                raise ValueError("Product ID is required!")
                 
             # Validate price
             try:
@@ -371,7 +494,10 @@ class InventoryModule:
 
     def add_product(self):
         try:
-            dialog = ProductDialog(self.main_app.root, "Add Product")
+            # Generate auto product ID
+            auto_product_id = self.generate_product_id()
+            
+            dialog = ProductDialog(self.main_app.root, "Add Product", auto_product_id=auto_product_id)
             if dialog.result:
                 # Validate the product data first
                 if not self.validate_product_data(dialog.result):
@@ -384,20 +510,17 @@ class InventoryModule:
                     messagebox.showerror("Error", "Product name is required!")
                     return
                     
-            
-                product_id_input = dialog.result.get('product_id', '').strip()
-                if not product_id_input:
-                    messagebox.showerror("Error", "Product ID is required!")
-                    return
+                # Use the product_id from dialog (which should be the auto-generated one)
+                product_id_input = dialog.result.get('product_id', auto_product_id).strip()
                 
-                
+                # Double-check for duplicates (shouldn't happen with auto-generation, but safety check)
                 self.main_app.cursor.execute('SELECT COUNT(*) FROM products WHERE product_id = ?', 
                                 (product_id_input,))
                 if self.main_app.cursor.fetchone()[0] > 0:
-                    messagebox.showerror("Error", "Product ID already exists! Please use a unique Product ID.")
+                    messagebox.showerror("Error", "Product ID already exists! Please try again.")
                     return
                 
-            
+                # Insert the new product
                 self.main_app.cursor.execute('''
                     INSERT INTO products (name, price, stock, category, product_id)
                     VALUES (?, ?, ?, ?, ?)
@@ -418,15 +541,10 @@ class InventoryModule:
                         'Initial stock when product was added to inventory'))
                 
                 self.main_app.conn.commit()
-                messagebox.showinfo("Success", f"Product '{dialog.result['name']}' added successfully!")
+                messagebox.showinfo("Success", f"Product '{dialog.result['name']}' added successfully with ID: {product_id_input}")
                 
-                # Refresh inventory display (respects current search)
-                if self.search_var and self.search_var.get().strip():
-                    search_term = self.search_var.get().strip()
-                    self.search_products(search_term)
-                    self.update_statistics(search_term)
-                else:
-                    self.refresh_products()
+                # Refresh inventory display (respects current filters)
+                self.apply_filters()
                 
                 # Refresh stock history if it's currently displayed
                 self.refresh_stock_history_if_visible()
@@ -450,7 +568,7 @@ class InventoryModule:
             
         # Get the selected product
         item = self.inventory_tree.item(selection[0])
-        product_id = item['values'][0]  
+        product_id = item['values'][0]  # Hidden ID
         
         try:
             # Get the current product data for the dialog
@@ -468,7 +586,6 @@ class InventoryModule:
             original_category = product[3]
             original_product_code = product[4]
             
-
             product_data = (product_id, product[0], product[1], product[2], product[3], product[4])
             
             # Open the product dialog for editing with the product_data tuple
@@ -563,13 +680,8 @@ class InventoryModule:
                     self.main_app.conn.commit()
                     print("Database transaction committed successfully")
                     
-                    # Refresh the inventory display
-                    if self.search_var and self.search_var.get().strip():
-                        search_term = self.search_var.get().strip()
-                        self.search_products(search_term)
-                        self.update_statistics(search_term)
-                    else:
-                        self.refresh_products()
+                    # Refresh the inventory display (respects current filters)
+                    self.apply_filters()
                     
                     # Force refresh the stock history module if it's visible
                     try:
@@ -611,8 +723,8 @@ class InventoryModule:
             return
             
         item = self.inventory_tree.item(selection[0])
-        product_id = item['values'][0]
-        product_name = item['values'][1]
+        product_id = item['values'][0]  # Hidden ID
+        product_name = item['values'][2]  # Name
         
         if messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete '{product_name}'?"):
             try:
@@ -630,13 +742,8 @@ class InventoryModule:
                 self.main_app.cursor.execute('DELETE FROM products WHERE id = ?', (product_id,))
                 self.main_app.conn.commit()
                 
-                # Refresh display 
-                if self.search_var and self.search_var.get().strip():
-                    search_term = self.search_var.get().strip()
-                    self.search_products(search_term)
-                    self.update_statistics(search_term)
-                else:
-                    self.refresh_products()
+                # Refresh display (respects current filters)
+                self.apply_filters()
                 
                 # Refresh stock history if it's currently displayed
                 self.refresh_stock_history_if_visible()
@@ -654,19 +761,23 @@ class InventoryModule:
                 for item in self.inventory_tree.get_children():
                     self.inventory_tree.delete(item)
                 
-                # Get all products from database
-                self.main_app.cursor.execute('SELECT id, name, price, stock, category, product_id FROM products ORDER BY name')
+                # Get all products from database, ordered by category then name
+                self.main_app.cursor.execute('''
+                    SELECT id, name, price, stock, category, product_id 
+                    FROM products 
+                    ORDER BY category, name
+                ''')
                 products = self.main_app.cursor.fetchall()
                 
                 # Insert products into treeview
                 for product in products:
                     self.inventory_tree.insert('', 'end', values=(
-                        product[0],  # id
+                        product[0],  # id (hidden)
+                        product[5],  # product_id
                         product[1],  # name
-                        f"₱{product[2]:.2f}",  # price
-                        product[3],  # stock
                         product[4],  # category
-                        product[5]   # product_id
+                        f"₱{product[2]:.2f}",  # price
+                        product[3]   # stock
                     ))
                     
                 # Update statistics
@@ -683,12 +794,7 @@ class InventoryModule:
     def refresh(self):
         """Refresh the inventory interface"""
         if self.frame:
-            if self.search_var and self.search_var.get().strip():
-                search_term = self.search_var.get().strip()
-                self.search_products(search_term)
-                self.update_statistics(search_term)
-            else:
-                self.refresh_products()
+            self.apply_filters()
             return self.frame
         return None
 
@@ -705,6 +811,162 @@ class InventoryModule:
                         print("Stock history refreshed after inventory change")
         except Exception as e:
             print(f"Could not refresh stock history: {e}")
+
+
+class StockHistoryDialog:
+    """Dialog to display stock history for a specific product"""
+    
+    def __init__(self, parent, main_app, product_code, product_name, current_stock):
+        self.main_app = main_app
+        self.product_code = product_code
+        
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title(f"Stock History - {product_name}")
+        self.dialog.geometry("900x600")
+        self.dialog.transient(parent)
+        self.dialog.grab_set()
+        self.dialog.configure(bg='#f0fdff')
+        
+        # Center the dialog
+        self.dialog.update_idletasks()
+        x = (self.dialog.winfo_screenwidth() // 2) - (450)
+        y = (self.dialog.winfo_screenheight() // 2) - (300)
+        self.dialog.geometry(f"900x600+{x}+{y}")
+        
+        # Main frame
+        main_frame = ttk.Frame(self.dialog, padding="20", style='Content.TFrame')
+        main_frame.pack(fill='both', expand=True)
+        
+        # Header
+        header_frame = ttk.Frame(main_frame, style='Content.TFrame')
+        header_frame.pack(fill='x', pady=(0, 20))
+        
+        ttk.Label(header_frame, text=f"📊 Stock History", 
+                 style='PageTitle.TLabel').pack(side='left')
+        
+        # Product info
+        info_frame = ttk.Frame(main_frame, style='Card.TFrame')
+        info_frame.pack(fill='x', pady=(0, 20))
+        
+        ttk.Label(info_frame, text=f"Product: {product_name}", 
+                 font=('Arial', 12, 'bold')).pack(anchor='w', padx=20, pady=(15, 5))
+        ttk.Label(info_frame, text=f"Product ID: {product_code}", 
+                 font=('Arial', 10)).pack(anchor='w', padx=20, pady=(0, 5))
+        ttk.Label(info_frame, text=f"Current Stock: {current_stock} units", 
+                 font=('Arial', 10, 'bold'), foreground='#00bcd4').pack(anchor='w', padx=20, pady=(0, 15))
+        
+        # History table
+        table_frame = ttk.Frame(main_frame, style='Card.TFrame')
+        table_frame.pack(fill='both', expand=True, pady=(0, 20))
+        
+        # Create treeview
+        columns = ('Date', 'Type', 'Quantity', 'Reference', 'Notes')
+        self.history_tree = ttk.Treeview(table_frame, columns=columns, show='headings', 
+                                        style='Modern.Treeview', height=15)
+        
+        # Configure columns
+        self.history_tree.heading('Date', text='Date & Time')
+        self.history_tree.heading('Type', text='Type')
+        self.history_tree.heading('Quantity', text='Quantity')
+        self.history_tree.heading('Reference', text='Reference')
+        self.history_tree.heading('Notes', text='Notes')
+        
+        self.history_tree.column('Date', width=180, anchor='center')
+        self.history_tree.column('Type', width=80, anchor='center')
+        self.history_tree.column('Quantity', width=100, anchor='center')
+        self.history_tree.column('Reference', width=150, anchor='center')
+        self.history_tree.column('Notes', width=300, anchor='w')
+        
+        # Scrollbar
+        scrollbar = ttk.Scrollbar(table_frame, orient='vertical', command=self.history_tree.yview)
+        self.history_tree.configure(yscrollcommand=scrollbar.set)
+        
+        self.history_tree.pack(side='left', fill='both', expand=True, padx=20, pady=20)
+        scrollbar.pack(side='right', fill='y', pady=20)
+        
+        # Buttons
+        button_frame = ttk.Frame(main_frame, style='Content.TFrame')
+        button_frame.pack(fill='x')
+        
+        ttk.Button(button_frame, text="Close", command=self.dialog.destroy, 
+                  style='Secondary.TButton').pack(side='right')
+        
+        # Load stock history
+        self.load_stock_history()
+        
+        # Bind Escape key to close
+        self.dialog.bind('<Escape>', lambda e: self.dialog.destroy())
+    
+    def load_stock_history(self):
+        """Load stock history for the product"""
+        try:
+            # Clear existing items
+            for item in self.history_tree.get_children():
+                self.history_tree.delete(item)
+            
+            # Get stock movements from database
+            self.main_app.cursor.execute('''
+                SELECT movement_date, movement_type, quantity, reference_id, notes
+                FROM stock_movements
+                WHERE product_id = ?
+                ORDER BY movement_date DESC
+            ''', (self.product_code,))
+            
+            movements = self.main_app.cursor.fetchall()
+            
+            # Insert movements into treeview
+            for movement in movements:
+                # Format date
+                date_str = movement[0]
+                try:
+                    from datetime import datetime
+                    date_obj = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+                    formatted_date = date_obj.strftime('%Y-%m-%d %I:%M %p')
+                except:
+                    formatted_date = date_str
+                
+                # Determine type display and quantity format
+                movement_type = movement[1]
+                quantity = movement[2]
+                
+                if movement_type == 'IN':
+                    type_display = '📥 IN'
+                    quantity_display = f"+{quantity}"
+                    tags = ('in',)
+                elif movement_type == 'OUT':
+                    type_display = '📤 OUT'
+                    quantity_display = f"-{quantity}"
+                    tags = ('out',)
+                else:
+                    type_display = movement_type
+                    quantity_display = str(quantity)
+                    tags = ()
+                
+                self.history_tree.insert('', 'end', values=(
+                    formatted_date,
+                    type_display,
+                    quantity_display,
+                    movement[3] or '',  # reference_id
+                    movement[4] or ''   # notes
+                ), tags=tags)
+            
+            # Configure tag colors
+            self.history_tree.tag_configure('in', foreground='#10b981')  # Green for IN
+            self.history_tree.tag_configure('out', foreground='#ef4444')  # Red for OUT
+            
+            if not movements:
+                # Show message if no history
+                self.history_tree.insert('', 'end', values=(
+                    'No stock history available',
+                    '',
+                    '',
+                    '',
+                    ''
+                ))
+            
+        except Exception as e:
+            print(f"Error loading stock history: {e}")
+            messagebox.showerror("Error", f"Failed to load stock history: {str(e)}")
 
 
 class AddStockDialog:
